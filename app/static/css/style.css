@@ -1,0 +1,43 @@
+/* SmartStock styles, layered on top of Bootstrap's CSS.
+   Colours come from the proposal cover: navy, blue and teal. */
+
+:root {
+  --ss-navy: #155a8a;
+  --ss-blue: #2b8fd8;
+  --ss-teal: #1fb5b3;
+  --ss-bg: #f3f7fa;
+  --ss-ink: #1d2b36;
+}
+
+body { background: var(--ss-bg); color: var(--ss-ink); }
+
+/* ----- navigation bar ----- */
+.ss-navbar { background: var(--ss-navy); }
+.ss-nav-inner { flex-wrap: wrap; gap: .25rem 1rem; }   /* wraps on phones instead of needing a menu button */
+.ss-nav-links { flex-wrap: wrap; flex: 1 1 auto; }
+.ss-navbar .nav-link { color: rgba(255,255,255,.8); padding: .5rem .6rem; }
+.ss-navbar .nav-link:hover, .ss-navbar .nav-link.active { color: #fff; }
+.ss-navbar .nav-link.active { border-bottom: 2px solid var(--ss-teal); }
+.ss-logout { display: flex; align-items: center; margin: 0; }
+
+/* ----- buttons ----- */
+.btn-ss { background: var(--ss-blue); border-color: var(--ss-blue); color: #fff; }
+.btn-ss:hover, .btn-ss:focus { background: var(--ss-navy); border-color: var(--ss-navy); color: #fff; }
+
+/* ----- cards and KPI tiles ----- */
+.card { border: 0; box-shadow: 0 1px 3px rgba(21, 90, 138, .12); }
+.card-header { background: #fff; font-weight: 600; }
+.kpi-card { border-left: 5px solid var(--ss-blue); }
+.kpi-label { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: #5b6b78; }
+.kpi-value { font-size: 1.9rem; font-weight: 700; line-height: 1.2; }
+.kpi-hint { font-size: .75rem; color: #6c7a86; }
+.kpi-primary { border-left-color: var(--ss-blue); }
+.kpi-teal    { border-left-color: var(--ss-teal); }
+.kpi-danger  { border-left-color: #dc3545; }
+.kpi-success { border-left-color: #198754; }
+
+/* ----- small helpers ----- */
+.supplier-strip { background: #e9f2fb; border-radius: .4rem; padding: .5rem .75rem; }
+.ss-qty { width: 6rem; }
+.empty-state { font-style: italic; }
+:focus-visible { outline: 3px solid var(--ss-teal); outline-offset: 2px; }
