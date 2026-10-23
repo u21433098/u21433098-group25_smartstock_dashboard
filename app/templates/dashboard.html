@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi_card, empty_state %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<!-- ===== DASHBOARD PAGE ===== -->
+<h1 class="h3 mb-0">SmartStock dashboard</h1>
+<p class="text-muted">Adlers Vending Operations | Restocker: {{ current_user.name }}</p>
+
+<!-- KPI cards -->
+<div class="row g-3 mb-4">
+  {{ kpi_card("Machines monitored", kpis.machines, "manual counts (sensor feed simulated)") }}
+  {{ kpi_card("Items below threshold", kpis.below_threshold, "across machine, drawer and central", "danger" if kpis.below_threshold else "success") }}
+  {{ kpi_card("Central storage value", kpis.central_value|rand, "at cost price", "teal") }}
+  {{ kpi_card("Supplier trips saved", kpis.trips_saved, "this shopping list vs one trip per product", "primary") }}
+</div>
+
+<div class="row g-3 mb-3">
+  <!-- Low-stock alerts preview -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h6 mb-0">Low-stock alerts (all tiers)</h2>
+        <a href="{{ url_for('dashboard.all_alerts') }}" class="small">View all {{ total_alerts }}</a>
+      </div>
+      <div class="table-responsive">
+        {% if alerts %}
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th scope="col">Product</th><th scope="col">Where</th><th scope="col" class="text-end">Qty</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+          {% for a in alerts %}
+            <tr><td>{{ a.product }}</td><td>{{ a.tier }}: {{ a.location }}</td><td class="text-end">{{ a.qty }}</td>
+                <td><span class="badge bg-{{ a.tone }} {{ 'text-dark' if a.tone == 'warning' }}">{{ a.severity }}</span></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}{{ empty_state("No alerts. Every tier is above its threshold.") }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Shopping list preview -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h6 mb-0">Consolidated shopping list</h2>
+        <a href="{{ url_for('procurement.shopping_list') }}" class="small">Full list</a>
+      </div>
+      <div class="card-body">
+        {% if shopping.groups %}
+          <p class="small text-muted">One trip per supplier, not per product.</p>
+          {% for g in shopping.groups %}
+            <div class="supplier-strip mb-2">
+              <strong>{{ g.supplier }}</strong>
+              <div class="small">{% for line in g.lines %}{{ line.product }} x {{ line.qty }}{{ ", " if not loop.last }}{% endfor %}</div>
+            </div>
+          {% endfor %}
+        {% else %}{{ empty_state("Nothing to order right now.") }}{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Best sellers -->
+  <div class="col-12 col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><h2 class="h6 mb-0">Best-selling items (last 30 days, all machines)</h2></div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th scope="col">#</th><th scope="col">Product</th><th scope="col" class="text-end">Units sold</th><th scope="col" class="text-end">Per day</th><th scope="col">Drawer priority</th></tr></thead>
+          <tbody>
+          {% for b in best_sellers %}
+            <tr><td>{{ b.rank }}</td><td>{{ b.name }}</td><td class="text-end">{{ b.turnover }}</td>
+                <td class="text-end">{{ "%.1f"|format(b.per_day) }}</td><td>{{ b.priority }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Impact estimate -->
+  <div class="col-12 col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><h2 class="h6 mb-0">Impact estimate (objective O4)</h2></div>
+      <div class="card-body small">
+        <p class="mb-2">Baseline: 2 unplanned supplier trips a week at 60 minutes each is about
+          <strong>{{ "%.1f"|format(kpis.baseline_hours) }} hours</strong> of driving a month.</p>
+        <p class="mb-2">Cutting trips by {{ kpis.reduction_pct }}% saves about
+          <strong>{{ "%.1f"|format(kpis.target_hours_saved) }} hours a month</strong>.</p>
+        <p class="mb-0 text-muted">This is a modelled estimate from the proposal's assumptions, not a measurement.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

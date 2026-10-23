@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty_state %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+<!-- ===== ALERTS PAGE ===== -->
+<h1 class="h3">Low-stock alerts</h1>
+<p class="text-muted">Any tier (machine, drawer or central storage) at or below its threshold. Out-of-stock items are listed first.</p>
+<div class="card">
+  <div class="table-responsive">
+    {% if alerts %}
+    <table class="table align-middle mb-0">
+      <thead><tr><th scope="col">Status</th><th scope="col">Product</th><th scope="col">Tier</th><th scope="col">Location</th><th scope="col" class="text-end">Qty</th><th scope="col" class="text-end">Threshold</th><th scope="col"><span class="visually-hidden">Open</span></th></tr></thead>
+      <tbody>
+      {% for a in alerts %}
+        <tr>
+          <td><span class="badge bg-{{ a.tone }} {{ 'text-dark' if a.tone == 'warning' }}">{{ a.severity }}</span></td>
+          <td>{{ a.product }}</td><td>{{ a.tier }}</td><td>{{ a.location }}</td>
+          <td class="text-end">{{ a.qty }}</td><td class="text-end">{{ a.threshold }}</td>
+          <td class="text-end">{% if a.machine_id %}<a href="{{ url_for('inventory.machine_detail', machine_id=a.machine_id) }}">Open</a>{% else %}<a href="{{ url_for('inventory.central') }}">Open</a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}{{ empty_state("No alerts. Every tier is above its threshold.") }}{% endif %}
+  </div>
+</div>
+{% endblock %}

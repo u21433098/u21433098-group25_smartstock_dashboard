@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi_card, empty_state %}
+{% block title %}Shopping list{% endblock %}
+{% block content %}
+<!-- ===== SHOPPING LIST PAGE ===== -->
+<h1 class="h3">Consolidated shopping list</h1>
+<p class="text-muted">Stock from the machines, drawers and central storage is added together and topped up to a target level for the week, rounded up to whole cases. One trip per supplier.</p>
+
+<div class="row g-3 mb-4">
+  {{ kpi_card("Products to order", shopping.n_products) }}
+  {{ kpi_card("Suppliers to visit", shopping.n_suppliers, tone="teal") }}
+  {{ kpi_card("Trips saved", shopping.trips_saved, "vs one trip per product", "success") }}
+  {{ kpi_card("Estimated cost", shopping.total_cost|rand, "at cost price") }}
+</div>
+
+{% for g in shopping.groups %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between flex-wrap">
+    <h2 class="h6 mb-0">{{ g.supplier }}</h2>
+    <span class="small text-muted">Lead time {{ g.lead_time }} day(s) | Order total {{ g.total_cost|rand }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">On hand (all tiers)</th><th scope="col" class="text-end">Reorder point</th><th scope="col" class="text-end">Target level</th><th scope="col" class="text-end">Order (units)</th><th scope="col" class="text-end">Cases</th><th scope="col" class="text-end">Cost</th></tr></thead>
+      <tbody>
+      {% for line in g.lines %}
+        <tr>
+          <td>{{ line.product }}{% if line.urgent %} <span class="badge bg-danger">Urgent</span>{% endif %}</td>
+          <td class="text-end">{{ line.on_hand }}</td><td class="text-end">{{ line.reorder_point }}</td>
+          <td class="text-end">{{ line.target }}</td><td class="text-end fw-bold">{{ line.qty }}</td>
+          <td class="text-end">{{ line.cases }}</td><td class="text-end">{{ line.cost|rand }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body">{{ empty_state("Nothing to order right now. Every product is at or above its target level.") }}</div></div>
+{% endfor %}
+<p class="small text-muted">"Urgent" means stock on hand is already at or below the reorder point for that supplier's lead time.</p>
+{% endblock %}

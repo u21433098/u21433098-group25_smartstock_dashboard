@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty_state %}
+{% block title %}Allocation{% endblock %}
+{% block content %}
+<!-- ===== ALLOCATION PAGE ===== -->
+<h1 class="h3">Drawer allocation recommendation</h1>
+<p class="text-muted">Products are ranked by units sold in the last 30 days. The drawer's limited space goes to the fastest sellers first; everything else stays in central storage.</p>
+
+{# a plain GET form: choosing a machine reloads the page, no JavaScript needed #}
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-8 col-md-4">
+    <label for="machine" class="form-label">Machine</label>
+    <select class="form-select" id="machine" name="machine">
+      {% for m in machines %}<option value="{{ m.id }}" {{ 'selected' if m.id == machine.id }}>{{ m.code }} - {{ m.location }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-4 col-md-2"><button type="submit" class="btn btn-ss w-100">Show</button></div>
+</form>
+
+<p>Drawer space used: <strong>{{ plan.allocated }} / {{ plan.capacity }} units</strong>
+   (target buffer: {{ plan.buffer_days }} days of sales per product).</p>
+
+<div class="card">
+  <div class="table-responsive">
+    {% if plan.rows %}
+    <table class="table align-middle mb-0">
+      <thead><tr><th scope="col">Rank</th><th scope="col">Product</th><th scope="col" class="text-end">Sold (30 d)</th><th scope="col">Priority</th><th scope="col" class="text-end">Recommended in drawer</th><th scope="col" class="text-end">Now in drawer</th><th scope="col">Action</th></tr></thead>
+      <tbody>
+      {% for r in plan.rows %}
+        <tr>
+          <td>{{ r.rank }}</td><td>{{ r.name }}</td><td class="text-end">{{ r.turnover }}</td>
+          <td><span class="badge {{ 'bg-success' if r.priority == 'High' else ('bg-info text-dark' if r.priority == 'Medium' else 'bg-secondary') }}">{{ r.priority }}</span></td>
+          <td class="text-end">{{ r.recommended }}</td><td class="text-end">{{ r.current }}</td>
+          <td><span class="badge bg-{{ r.tone }}">{{ r.action }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}{{ empty_state("This machine has no sales history yet.") }}{% endif %}
+  </div>
+</div>
+{% endblock %}

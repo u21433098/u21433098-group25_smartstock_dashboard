@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_input, stock_badge, empty_state %}
+{% block title %}Central storage{% endblock %}
+{% block content %}
+<!-- ===== CENTRAL STORAGE PAGE ===== -->
+<h1 class="h3">Central storage (Adlers facility)</h1>
+<p class="text-muted">One shared pool that can restock any machine. Update a count after a stock take.</p>
+<div class="card">
+  <div class="table-responsive">
+    {% if rows %}
+    <table class="table align-middle mb-0">
+      <thead><tr><th scope="col">Product</th><th scope="col">Supplier</th><th scope="col">In stock</th><th scope="col" class="text-end">Value</th><th scope="col">New count</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <th scope="row" class="fw-normal">{{ r.name }}</th>
+          <td class="small">{{ r.supplier }}</td>
+          <td>{{ stock_badge(r.qty, none, r.threshold) }}</td>
+          <td class="text-end">{{ r.value|rand }}</td>
+          <td>
+            <form method="post" action="{{ url_for('inventory.set_central', product_id=r.product_id) }}" class="d-flex gap-2">
+              {{ csrf_input() }}
+              <label class="visually-hidden" for="central-{{ r.product_id }}">New count for {{ r.name }}</label>
+              <input type="number" class="form-control form-control-sm ss-qty" id="central-{{ r.product_id }}" name="qty" min="0" max="5000" step="1" required>
+              <button type="submit" class="btn btn-sm btn-ss">Save</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}{{ empty_state("No central storage records yet.") }}{% endif %}
+  </div>
+</div>
+{% endblock %}

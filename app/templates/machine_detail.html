@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_input, stock_badge, empty_state %}
+{% block title %}{{ machine.code }}{% endblock %}
+{% block content %}
+<!-- ===== MACHINE DETAIL PAGE ===== -->
+<p class="mb-1"><a href="{{ url_for('inventory.machines') }}">&larr; All machines</a></p>
+<h1 class="h3">{{ machine.code }} <span class="text-muted fs-6">{{ machine.location }}</span></h1>
+
+<!-- three-tier stock table (O2: one combined view per machine) -->
+<div class="card mb-4">
+  <div class="card-header"><h2 class="h6 mb-0">Stock in all three tiers</h2></div>
+  <div class="table-responsive">
+    {% if rows %}
+    <table class="table align-middle mb-0">
+      <thead><tr><th scope="col">Product</th><th scope="col">In machine</th><th scope="col">Drawer buffer</th><th scope="col">Central pool (shared)</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <th scope="row" class="fw-normal">{{ r.name }}</th>
+          <td>{{ stock_badge(r.machine.qty, r.machine.capacity, r.machine.threshold) }}</td>
+          <td>{{ stock_badge(r.drawer.qty, r.drawer.capacity, r.drawer.threshold) }}</td>
+          <td>{{ stock_badge(r.central.qty, none, r.central.threshold) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}{{ empty_state("This machine has no products set up.") }}{% endif %}
+  </div>
+</div>
+
+{% if rows %}
+<div class="row g-3 mb-4">
+  <!-- form: log a restock visit -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6">Log a restock visit</h2>
+      <p class="small text-muted">Enter the units you brought. They fill the machine first, then the drawer, and any remainder is returned to central storage.</p>
+      <form method="post" action="{{ url_for('inventory.restock', machine_id=machine.id) }}">
+        {{ csrf_input() }}
+        <div class="mb-3">
+          <label for="restock-product" class="form-label">Product</label>
+          <select class="form-select" id="restock-product" name="product_id" required>
+            {% for r in rows %}<option value="{{ r.product_id }}">{{ r.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="units" class="form-label">Units brought</label>
+          <input type="number" class="form-control" id="units" name="units" min="1" max="1000" step="1" required>
+        </div>
+        <button type="submit" class="btn btn-ss">Save restock</button>
+      </form>
+    </div></div>
+  </div>
+
+  <!-- form: record a manual machine count -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6">Record a machine count</h2>
+      <p class="small text-muted">Use this when you count the stock inside the machine yourself (the manual fallback for the sensor feed).</p>
+      <form method="post" action="{{ url_for('inventory.set_count', machine_id=machine.id) }}">
+        {{ csrf_input() }}
+        <div class="mb-3">
+          <label for="count-product" class="form-label">Product</label>
+          <select class="form-select" id="count-product" name="product_id" required>
+            {% for r in rows %}<option value="{{ r.product_id }}">{{ r.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="qty" class="form-label">Units counted (0 to {{ rows[0].machine.capacity }})</label>
+          <input type="number" class="form-control" id="qty" name="qty" min="0" max="{{ rows[0].machine.capacity }}" step="1" required>
+        </div>
+        <button type="submit" class="btn btn-ss">Save count</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- recent changes -->
+<div class="card">
+  <div class="card-header"><h2 class="h6 mb-0">Recent changes</h2></div>
+  <div class="table-responsive">
+    {% if movements %}
+    <table class="table table-sm mb-0">
+      <thead><tr><th scope="col">Time</th><th scope="col">Product</th><th scope="col">Tier</th><th scope="col">Change</th><th scope="col">Note</th><th scope="col">By</th></tr></thead>
+      <tbody>
+      {% for m in movements %}
+        <tr><td>{{ m.time }}</td><td>{{ m.product }}</td><td>{{ m.tier }}</td><td>{{ m.old }} &rarr; {{ m.new }}</td><td>{{ m.note }}</td><td>{{ m.user }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}{{ empty_state("No changes recorded yet. Save a count or a restock to see it here.") }}{% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty_state %}
+{% block title %}Machines{% endblock %}
+{% block content %}
+<!-- ===== MACHINE LIST PAGE ===== -->
+<h1 class="h3">Vending machines</h1>
+<p class="text-muted">Choose a machine to see its machine, drawer and central stock side by side.</p>
+<div class="card">
+  <div class="table-responsive">
+    {% if machines %}
+    <table class="table align-middle mb-0">
+      <thead><tr><th scope="col">Machine</th><th scope="col">Location</th><th scope="col">Alerts</th><th scope="col"><span class="visually-hidden">Open</span></th></tr></thead>
+      <tbody>
+      {% for m in machines %}
+        <tr>
+          <td><strong>{{ m.code }}</strong></td><td>{{ m.location }}</td>
+          <td>{% if alert_counts[m.id] %}<span class="badge bg-danger">{{ alert_counts[m.id] }} low</span>{% else %}<span class="badge bg-success">All OK</span>{% endif %}</td>
+          <td class="text-end"><a class="btn btn-sm btn-ss" href="{{ url_for('inventory.machine_detail', machine_id=m.id) }}">Open {{ m.code }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}{{ empty_state("No machines have been set up yet.") }}{% endif %}
+  </div>
+</div>
+{% endblock %}

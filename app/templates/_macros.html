@@ -1,0 +1,31 @@
+{# Reusable pieces. Import with:  {% from "_macros.html" import csrf_input, kpi_card %} #}
+
+{# --- hidden CSRF token: put inside every <form method="post"> --- #}
+{% macro csrf_input() %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endmacro %}
+
+{# --- KPI card used on the dashboard --- #}
+{% macro kpi_card(label, value, hint="", tone="primary") %}
+<div class="col-6 col-lg-3">
+  <div class="card kpi-card kpi-{{ tone }} h-100">
+    <div class="card-body">
+      <div class="kpi-label">{{ label }}</div>
+      <div class="kpi-value">{{ value }}</div>
+      {% if hint %}<div class="kpi-hint">{{ hint }}</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{# --- stock number badge: red = empty, amber = at/below threshold, green = fine --- #}
+{% macro stock_badge(qty, capacity, threshold) %}
+{% set tone = 'danger' if qty == 0 else ('warning text-dark' if qty <= threshold else 'success') %}
+{% set word = 'empty' if qty == 0 else ('low' if qty <= threshold else 'ok') %}
+<span class="badge bg-{{ tone }}">{{ qty }}{% if capacity %} / {{ capacity }}{% endif %}<span class="visually-hidden"> ({{ word }})</span></span>
+{% endmacro %}
+
+{# --- message shown when a list has nothing in it --- #}
+{% macro empty_state(message) %}
+<div class="empty-state text-center text-muted py-4">{{ message }}</div>
+{% endmacro %}
