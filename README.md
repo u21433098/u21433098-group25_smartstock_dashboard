@@ -197,5 +197,5 @@ In this lean version the tables are Python dictionaries in `app/data/seed_data.p
 
 | Member | Student no. | Files owned | Reviewed by |
 |---|---|---|---|
-| Claudia Aird | u21433098 | _fill in_ | Josua Olivier |
-| Josua Olivier | u23524431 | _fill in_ | Claudia Aird |
+| Claudia Aird | u21433098 | models/, tests/test_safety_stock.py, tests/test_allocation.py, tests/test_procurement.py, app/data/seed_data.py, app/services/, config.py, run.py, .env.example, README.md| Josua Olivier |
+| Josua Olivier | u23524431 | app/static/css/style.css, app/templates/, app/blueprints/, app/__init__.py, tests/test_routes.py | Claudia Aird |
