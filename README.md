@@ -90,6 +90,11 @@ All formulas are in `models/` with docstrings stating assumptions.
 d = average daily demand, s = standard deviation of daily demand, L = supplier lead time (days), R = review period (7 days, the weekly supplier run).
 "Stock on hand" adds the machine, drawer and central tiers together.
 
+**Why EOQ is not shown in the app.** EOQ assumes stock can be ordered at any time. 
+Mr Msiza buys on a fixed weekly supplier run, so the app uses the order-up-to (periodic review)
+policy for the shopping list instead. `eoq()` is kept in `models/procurement.py` and unit-tested
+as a reference calculation for comparison.
+
 **Drawer allocation (O3):** rank products by units sold in the last 30 days; give each its desired buffer
 (3 days of sales, capped by its slot size), fastest sellers first, until the drawer's total space (50 units) is used.
 Anything that does not fit stays in central storage.
