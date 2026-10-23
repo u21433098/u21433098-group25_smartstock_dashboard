@@ -96,7 +96,7 @@ Anything that does not fit stays in central storage.
 
 **Impact estimate.** Two 60-minute unplanned supplier trips a week is about 8.7 hours of driving a month.
 A 25% cut in trips (O4) therefore saves about **2.2 hours a month**. This is a modelled estimate, not a measurement.
-(The proposal's "5-6 hours a month" figure does not follow from its own assumptions and should be corrected in the report.)
+(This replaces the earlier "5-6 hours a month" estimate, which overstated the saving.)
 
 ## Design decisions
 
@@ -197,5 +197,5 @@ In this lean version the tables are Python dictionaries in `app/data/seed_data.p
 
 | Member | Student no. | Files owned | Reviewed by |
 |---|---|---|---|
-| Claudia Aird | u21433098 | _fill in_ | Josua Olivier |
-| Josua Olivier | u23524431 | _fill in_ | Claudia Aird |
+| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), `config.py`, `run.py`, `.env.example`, `README.md` | Josua Olivier |
+| Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`), app factory (`app/__init__.py`), integration tests (`tests/test_routes.py`) | Claudia Aird |
