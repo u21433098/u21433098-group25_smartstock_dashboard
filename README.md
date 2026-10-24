@@ -15,7 +15,7 @@ It replaces the paper log and goes beyond what the third-party app Moma tracks.
 
 | Feature | Page | Objective |
 |---|---|---|
-| Machine, drawer and central stock side by side | Machines, then a machine | O1, O2 |
+| Machine, drawer and central stock side by side | Machines list, then a detailed machine’s page | O1, O2 |
 | Record a manual machine count | Machine page | O1 (fallback) |
 | Log a restock visit (fills machine, then drawer, then returns the rest to central) | Machine page | O2 |
 | Central storage tracker | Central storage | O2 |
