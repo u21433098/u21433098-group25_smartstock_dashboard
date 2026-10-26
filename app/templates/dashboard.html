@@ -11,7 +11,7 @@
   {{ kpi_card("Machines monitored", kpis.machines, "manual counts (sensor feed simulated)") }}
   {{ kpi_card("Items below threshold", kpis.below_threshold, "across machine, drawer and central", "danger" if kpis.below_threshold else "success") }}
   {{ kpi_card("Central storage value", kpis.central_value|rand, "at cost price", "teal") }}
-  {{ kpi_card("Supplier trips saved", kpis.trips_saved, "this shopping list vs one trip per product", "primary") }}
+  {{ kpi_card("Trips saved on this order", kpis.trips_saved, shopping.n_products ~ " products from " ~ shopping.n_suppliers ~ " suppliers", "primary") }}
 </div>
 
 <div class="row g-3 mb-3">
