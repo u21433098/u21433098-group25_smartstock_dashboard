@@ -5,10 +5,10 @@ PURE PYTHON: no Flask, no database.
 Policy: periodic review. Every `review_days` (the weekly supplier run) stock is
 topped up to an order-up-to level:
 
-    S = d * (L + R) + z * s * sqrt(L + R)
+    U = d * (L + R) + z * s * sqrt(L + R)
 
 with d = average daily demand, s = demand std deviation, L = supplier lead time
-and R = review period, both in days. The order is the shortfall (S - on hand),
+and R = review period, both in days. The order is the shortfall (U - on hand),
 rounded UP to whole cases.
 """
 import math
@@ -17,7 +17,7 @@ from models.safety_stock import safety_stock
 
 
 def order_up_to_level(avg_demand, std_dev, lead_time_days, review_days, z=1.645):
-    """Target stock level S for a periodic-review policy (units)."""
+    """Order-up-to level U for a periodic-review policy (units)."""
     protection_interval = lead_time_days + review_days
     return avg_demand * protection_interval + safety_stock(std_dev, protection_interval, z)
 
