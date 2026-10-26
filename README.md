@@ -82,12 +82,27 @@ All formulas are in `models/` with docstrings stating assumptions.
 |---|---|
 | Safety stock | `SS = z x s x sqrt(L)` (z = 1.645, a 95% service level) |
 | Reorder point | `ROP = d x L + SS` |
-| Order-up-to level (weekly review) | `S = d x (L + R) + z x s x sqrt(L + R)` |
-| Order quantity | `(S - stock on hand)`, rounded **up** to whole cases |
+| Order-up-to level (weekly review) | `U = d x (L + R) + z x s x sqrt(L + R)` |
+| Order quantity | `(U - stock on hand)`, rounded **up** to whole cases |
 | Trips saved | `products to order - suppliers to visit` |
 | Economic order quantity | `EOQ = sqrt(2DS / H)` |
 
-d = average daily demand, s = standard deviation of daily demand, L = supplier lead time (days), R = review period (7 days, the weekly supplier run).
+**Symbols**
+
+| Symbol | Meaning |
+|---|---|
+| d | average daily demand (units per day) |
+| s | standard deviation of daily demand (units per day) |
+| z | service-level factor (1.645 for a 95% service level) |
+| L | supplier lead time (days) |
+| R | review period (days); 7, because Mr Msiza makes a weekly supplier run |
+| SS | safety stock (units) |
+| ROP | reorder point (units) |
+| U | order-up-to level: the stock level each weekly order tops up to (units) |
+| D | annual demand (units per year); EOQ only |
+| S | cost of placing one order (rand per order); EOQ only |
+| H | cost of holding one unit in stock for a year (rand per unit per year); EOQ only |
+
 "Stock on hand" adds the machine, drawer and central tiers together.
 
 **Why EOQ is not shown in the app.** EOQ assumes stock can be ordered at any time. 
