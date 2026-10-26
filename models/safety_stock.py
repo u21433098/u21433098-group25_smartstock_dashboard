@@ -11,7 +11,7 @@ Goncalves et al. 2020 in the proposal references):
     safety stock              SS = z * s * sqrt(L)
     reorder point             ROP = d * L + SS
 
-where L is the protection interval in days and z is the service-level factor
+where L is the supplier lead time in days and z is the service-level factor
 (1.645 gives a 95% service level).
 
 Assumptions: daily demand is roughly normal, independent from day to day, and
