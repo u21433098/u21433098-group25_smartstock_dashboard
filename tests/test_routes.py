@@ -160,3 +160,10 @@ def test_shopping_list_orders_less_after_a_big_delivery(logged_in):
     with logged_in.application.test_request_context():
         after = analytics_service.build_shopping_list()["total_cost"]
     assert after < before
+
+
+def test_restock_never_overfills_the_drawer(logged_in):
+    for product_id in [p for (m, p) in db.DRAWER_STOCK if m == 2]:
+        logged_in.post("/machines/2/restock", data={"product_id": product_id, "units": 100})
+    drawer_total = sum(r["qty"] for (m, p), r in db.DRAWER_STOCK.items() if m == 2)
+    assert drawer_total <= 50

@@ -68,7 +68,7 @@ def get_allocation(machine_id):
             action, tone = f"Reduce by {-change} (return to central)", "secondary"
         else:
             action, tone = "No change", "success"
-        rows.append({"rank": rank, "name": db.PRODUCTS[p_id]["name"], "turnover": units,
+        rows.append({"product_id": p_id, "rank": rank, "name": db.PRODUCTS[p_id]["name"], "turnover": units,
                      "priority": allocation.priority_label(rank, len(ranked)),
                      "recommended": plan[p_id], "current": current,
                      "action": action, "tone": tone})

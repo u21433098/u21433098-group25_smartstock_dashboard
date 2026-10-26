@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 
 from app.data import seed_data as db
+from app.services import analytics_service
 from models.allocation import split_restock
 
 log = logging.getLogger(__name__)
@@ -88,10 +89,18 @@ def restock_visit(machine_id, product_id, units_brought, user_name):
     if not 1 <= units_brought <= 1000:
         raise ValueError("Units brought must be between 1 and 1000.")
 
+    # The drawer is only topped up to the Allocation page's recommendation,
+    # and never past the drawer's total capacity.
+    
+    plan = analytics_service.get_allocation(machine_id)
+    recommended = next(r["recommended"] for r in plan["rows"] if r["product_id"] == product_id)
+    drawer_total = sum(r["qty"] for (m, p), r in db.DRAWER_STOCK.items() if m == machine_id)
+    drawer_space = max(0, min(recommended - drawer_row["qty"], plan["capacity"] - drawer_total))
+
     to_machine, to_drawer, to_central = split_restock(
         units_brought,
         machine_row["capacity"] - machine_row["qty"],
-        drawer_row["capacity"] - drawer_row["qty"])
+        drawer_space)
 
     for tier, row, added in (("Machine", machine_row, to_machine),
                              ("Drawer", drawer_row, to_drawer)):
