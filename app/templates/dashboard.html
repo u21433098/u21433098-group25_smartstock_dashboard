@@ -67,11 +67,11 @@
       <div class="card-header"><h2 class="h6 mb-0">Best-selling items (last 30 days, all machines)</h2></div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
-          <thead><tr><th scope="col">#</th><th scope="col">Product</th><th scope="col" class="text-end">Units sold</th><th scope="col" class="text-end">Per day</th><th scope="col">Drawer priority</th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col">Product</th><th scope="col" class="text-end">Units sold</th><th scope="col" class="text-end">Per day</th></tr></thead>
           <tbody>
           {% for b in best_sellers %}
             <tr><td>{{ b.rank }}</td><td>{{ b.name }}</td><td class="text-end">{{ b.turnover }}</td>
-                <td class="text-end">{{ "%.1f"|format(b.per_day) }}</td><td>{{ b.priority }}</td></tr>
+                <td class="text-end">{{ "%.1f"|format(b.per_day) }}</td></tr>
           {% endfor %}
           </tbody>
         </table>
