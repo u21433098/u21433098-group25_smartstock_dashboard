@@ -41,3 +41,31 @@ body { background: var(--ss-bg); color: var(--ss-ink); }
 .ss-qty { width: 6rem; }
 .empty-state { font-style: italic; }
 :focus-visible { outline: 3px solid var(--ss-teal); outline-offset: 2px; }
+
+/* ----- decorative tile band above the navigation bar ----- */
+.ss-tiles {
+  --b1: #0b2e4f;   /* darkest navy */
+  --b2: #155a8a;   /* navy (same as the nav bar) */
+  --b3: #2b8fd8;   /* mid blue */
+  --b4: #6cb4ee;   /* sky blue */
+  --b5: #bfe0fa;   /* pale blue */
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  height: 64px;
+}
+.tile { display: block; }
+.tile-solid-dark  { background: var(--b1); }
+.tile-solid-light { background: var(--b5); }
+.tile-stripes     { background: repeating-linear-gradient(45deg, var(--b1) 0 7px, var(--b4) 7px 14px); }
+.tile-triangle    { background: linear-gradient(135deg, var(--b3) 50%, var(--b5) 50%); }
+.tile-triangle-2  { background: linear-gradient(225deg, var(--b1) 50%, var(--b4) 50%); }
+.tile-half-circle { background: radial-gradient(circle at 50% 100%, var(--b5) 0 48%, var(--b3) 49%); }
+.tile-quarter     { background: radial-gradient(circle at 0 100%, var(--b4) 0 70%, var(--b2) 71%); }
+.tile-dots        { background: radial-gradient(var(--b1) 0 22%, transparent 24%) 0 0 / 22px 22px, var(--b5); }
+.tile-notch       { background: conic-gradient(from -45deg at 50% 50%, var(--b1) 0 90deg, var(--b3) 90deg); }
+
+/* phones: show the first 6 tiles only, so they don't get squashed */
+@media (max-width: 576px) {
+  .ss-tiles { grid-template-columns: repeat(6, 1fr); height: 48px; }
+  .ss-tiles .tile:nth-child(n+7) { display: none; }
+}
