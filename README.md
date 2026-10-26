@@ -59,7 +59,7 @@ pytest
 app/
   __init__.py         create_app(): settings, login, CSRF, error pages
   blueprints/         one file per feature: auth, dashboard, inventory, allocation, procurement
-  services/           the ONLY layer that touches data (swap for MySQL later) and calls the models
+  services/           the only layer that touches data (swap for MySQL later) and calls the models
   data/seed_data.py   synthetic demo data (in memory)
   templates/          one HTML file per page + base.html and _macros.html
   static/css/         style.css (on top of Bootstrap CSS)

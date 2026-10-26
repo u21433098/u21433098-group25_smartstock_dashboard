@@ -105,7 +105,7 @@ def reset():
                 sales.append(max(0, round(rng.gauss(mean, max(mean, 0.5) ** 0.5))))
             SALES[(mid, pid)] = sales
 
-    # Demo login for Mr Msiza. Passwords are stored hashed, never in plain text.
+    # Demo login for Mr Msiza. Only a hash of the password is saved, not the password itself.
     USERS[1] = {"id": 1, "name": "Mr Msiza", "email": "msiza@adlers.test",
                 "password_hash": generate_password_hash("SmartStock123"),
                 "role": "restocker"}

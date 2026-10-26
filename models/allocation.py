@@ -27,7 +27,8 @@ def rank_products(turnover_by_product):
 def priority_label(rank, total):
     """Label a rank as High / Medium / Low (top third, middle third, bottom third).
 
-    Integer arithmetic avoids floating point surprises at the boundaries.
+    Multiplying instead of dividing keeps the maths in whole numbers, so ranks
+    on the boundary between two groups are labelled correctly.
     """
     if total < 1 or rank < 1 or rank > total:
         raise ValueError("rank must be between 1 and total.")
