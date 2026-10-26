@@ -110,11 +110,6 @@ All formulas are in `models/` with docstrings stating assumptions.
 - **EOQ (economic order quantity)** finds the best size for each order, balancing the cost of ordering often against the cost of storing too much. It assumes you can place an order whenever you like, and it needs figures we do not have: the cost of placing one order and the cost of holding stock for a year.
 - **The order-up-to method** works the way Mr Msiza actually buys. He does one supplier run each week. On every run, the app adds up the stock in the machines, drawers and central storage, then orders enough to reach a target level that covers the week ahead, the supplier's lead time and some safety stock. The order is rounded up to whole cases.
 
-**Why the app does not use EOQ.** There are two common ways to decide how much to order.
-
-- **EOQ (economic order quantity)** finds the best size for each order, balancing the cost of ordering often against the cost of storing too much. It assumes you can place an order whenever you like, and it needs figures we do not have: the cost of placing one order and the cost of holding stock for a year.
-- **The order-up-to method** works the way Mr Msiza actually buys. He does one supplier run each week. On every run, the app adds up the stock in the machines, drawers and central storage, then orders enough to reach a target level that covers the week ahead, the supplier's lead time and some safety stock. The order is rounded up to whole cases.
-
 SmartStock uses the order-up-to method for the shopping list, because it fits a fixed weekly run and needs no cost data. The `eoq()` function is still in `models/procurement.py` and is unit-tested, but the app does not call it. It is kept as a reference calculation, so the report can explain the alternative that was considered.
 
 **Drawer allocation (O3):** rank products by units sold in the last 30 days; give each its desired buffer
