@@ -2,7 +2,7 @@
 {% from "_macros.html" import kpi_card, empty_state %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<!-- ===== DASHBOARD PAGE ===== -->
+
 <h1 class="h3 mb-0">SmartStock dashboard</h1>
 <p class="text-muted">Adlers Vending Operations | Restocker: {{ current_user.name }}</p>
 
@@ -84,7 +84,7 @@
     <div class="card h-100">
       <div class="card-header"><h2 class="h6 mb-0">Impact estimate (objective O4)</h2></div>
       <div class="card-body small">
-        <p class="mb-2">Baseline: 2 unplanned supplier trips a week at 60 minutes each is about
+        <p class="mb-2">Baseline: {{ kpis.baseline_trips }} unplanned supplier trips a week at {{ kpis.minutes_per_trip }} minutes each
           <strong>{{ "%.1f"|format(kpis.baseline_hours) }} hours</strong> of driving a month.</p>
         <p class="mb-2">Cutting trips by {{ kpis.reduction_pct }}% saves about
           <strong>{{ "%.1f"|format(kpis.target_hours_saved) }} hours a month</strong>.</p>

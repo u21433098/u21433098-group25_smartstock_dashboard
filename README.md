@@ -118,7 +118,7 @@ Anything that does not fit stays in central storage.
 
 **Impact estimate.** Two 60-minute unplanned supplier trips a week is about 8.7 hours of driving a month.
 A 25% cut in trips (O4) therefore saves about **2.2 hours a month**. This is a modelled estimate, not a measurement.
-(This replaces the earlier "5-6 hours a month" estimate, which overstated the saving.)
+
 
 ## Design decisions
 

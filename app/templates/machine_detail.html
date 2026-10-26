@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf_input, stock_badge, empty_state %}
 {% block title %}{{ machine.code }}{% endblock %}
 {% block content %}
-<!-- ===== MACHINE DETAIL PAGE ===== -->
+
 <p class="mb-1"><a href="{{ url_for('inventory.machines') }}">&larr; All machines</a></p>
 <h1 class="h3">{{ machine.code }} <span class="text-muted fs-6">{{ machine.location }}</span></h1>
 

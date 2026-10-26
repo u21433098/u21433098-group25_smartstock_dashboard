@@ -124,6 +124,8 @@ def get_kpis(alerts, shopping):
         "below_threshold": len(alerts),
         "central_value": central_value,
         "trips_saved": shopping["trips_saved"],
+        "baseline_trips": trips,
+        "minutes_per_trip": minutes,
         "baseline_hours": procurement.monthly_travel_hours_saved(trips, minutes, 1.0),
         "target_hours_saved": procurement.monthly_travel_hours_saved(
             trips, minutes, _cfg("TRIP_REDUCTION_TARGET")),
