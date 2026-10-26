@@ -95,7 +95,7 @@ def reset():
                 "qty": LOW_MACHINE.get((mid, pid), rng.randint(8, MACHINE_SLOT_CAPACITY)),
                 "capacity": MACHINE_SLOT_CAPACITY, "threshold": MACHINE_THRESHOLD}
             DRAWER_STOCK[(mid, pid)] = {
-                "qty": LOW_DRAWER.get((mid, pid), rng.randint(3, 8)),
+                "qty": LOW_DRAWER.get((mid, pid), rng.randint(2, 6)),
                 "capacity": DRAWER_SLOT_CAPACITY, "threshold": DRAWER_THRESHOLD}
 
             # 30 days of sales; weekends (days 5 and 6 of each week) are quieter.
