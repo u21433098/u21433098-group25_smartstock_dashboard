@@ -19,11 +19,18 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True            # form protection; switched off only in tests
 
+    # ---- database (MySQL through the PyMySQL driver) ----
+    # Format: mysql+pymysql://USER:PASSWORD@HOST:PORT/DATABASE
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL", "mysql+pymysql://smartstock:smartstock_pw@localhost:3306/smartstock")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}  # reconnect if MySQL dropped an idle link
+
     # ---- supply chain settings used by app/services/analytics_service.py ----
     SERVICE_Z = 1.645              # 95% service level
     REVIEW_DAYS = 7                # Mr Msiza's weekly supplier run
     BUFFER_DAYS = 3                # days of sales we want sitting in a drawer
-    DRAWER_TOTAL_CAPACITY = 50     # units one machine's drawer can hold in total
+    SALES_WINDOW_DAYS = 30         # trailing window for turnover and demand (objective O3)
 
     # ---- baseline used for the impact estimate (from the proposal) ----
     BASELINE_TRIPS_PER_WEEK = 2
@@ -39,11 +46,18 @@ class TestingConfig(Config):
     TESTING = True
     CSRF_ENABLED = False
     SECRET_KEY = "test-secret"
+    # Tests run on a throwaway in-memory SQLite database by default, so they need no
+    # MySQL server. Set TEST_DATABASE_URL to a separate MySQL database to run them
+    # against MySQL instead. Never point it at the real database: tests wipe it.
+    SQLALCHEMY_DATABASE_URI = os.environ.get("TEST_DATABASE_URL", "sqlite://")
+    SQLALCHEMY_ENGINE_OPTIONS = {}
+    AUTO_CREATE_DB = True          # build + seed a fresh database each time an app is created
 
 
 class ProductionConfig(Config):
-    # No fallback: production must provide a real key through the environment.
+    # No fallbacks: production must provide a real key and database through the environment.
     SECRET_KEY = os.environ.get("SECRET_KEY")
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
 
 
 config_by_name = {
