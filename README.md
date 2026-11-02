@@ -7,7 +7,7 @@ the **machine**, the small **drawer** at its base, and the shared **central stor
 It also turns what is needed into **one consolidated order per supplier**.
 It replaces the paper log and goes beyond what the third-party app Moma tracks.
 
-> **Demo data.** Every machine, product, sale and stock level in this repo is synthetic.
+> **Demo data.** Every machine, product, sale and stock level loaded by `flask seed` is synthetic.
 > The Moma sensor feed named in the proposal is not available, so machine stock is entered as a
 > manual count (the fallback stated in the proposal).
 
@@ -26,23 +26,66 @@ It replaces the paper log and goes beyond what the third-party app Moma tracks.
 
 ## Quick start (Windows PowerShell)
 
+You need Python 3.11+ and a running MySQL 8 (or MariaDB 10.4+, e.g. from XAMPP) server.
+
+**1. Create the database and its user** (once). Open the MySQL client as root
+(`mysql -u root -p`, or the SQL tab in phpMyAdmin) and run:
+
+```sql
+CREATE DATABASE smartstock CHARACTER SET utf8mb4;
+CREATE USER 'smartstock'@'localhost' IDENTIFIED BY 'choose-a-password';
+GRANT ALL ON smartstock.* TO 'smartstock'@'localhost';
+```
+
+**2. Install and configure the app**
+
 ```
 git clone https://github.com/u21433098/u21433098-group25_smartstock_dashboard.git
 cd u21433098-group25_smartstock_dashboard
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+copy .env.example .env
+```
+
+Open `.env` and put your MySQL password into `DATABASE_URL`, and set your own `SECRET_KEY`.
+
+**3. Build the tables and load the demo data**
+
+```
+flask db upgrade
+flask seed --yes
+```
+
+**4. Run it**
+
+```
 python run.py
 ```
 
 Open http://127.0.0.1:5000 in a browser. The page styles load Bootstrap's CSS from a CDN, so an internet connection is needed.
 
-**Demo login:** `msiza@adlers.test` / `SmartStock123`
+**Demo logins** (both use the password `SmartStock123`):
+
+| Account | Email | Role |
+|---|---|---|
+| Mr Msiza | `msiza@adlers.test` | user |
+| Claudia Aird (developer) | `admin@smartstock.test` | admin |
 
 If activation says "running scripts is disabled", run once:
 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
 
-Optional: copy `.env.example` to `.env` and set your own `SECRET_KEY`.
+### Database commands
+
+| Command | What it does |
+|---|---|
+| `flask db upgrade` | Creates or updates the tables to the latest migration |
+| `flask db downgrade base` | Rollback: removes all SmartStock tables |
+| `flask seed --yes` | Wipes all rows and loads the demo data (sales end yesterday) |
+| `flask create-admin` | Creates an admin account (asks for name, email and password) |
+| `flask db migrate -m "message"` | After changing `app/models`, generates a new migration file |
+
+Stock changes are now saved in MySQL, so they survive a server restart. Run `flask seed --yes` to get back to the demo starting point.
 
 ## Run the tests
 
@@ -50,26 +93,36 @@ Optional: copy `.env.example` to `.env` and set your own `SECRET_KEY`.
 pytest
 ```
 
+By default the tests use a throwaway in-memory SQLite database, so they need no MySQL server.
+To run them against MySQL as well, create a **separate** `smartstock_test` database (the tests wipe it),
+grant the `smartstock` user access, and set `TEST_DATABASE_URL` in `.env` (see `.env.example`).
+
 - `tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`: unit tests for the supply chain model, checked against hand-calculated answers.
 - `tests/test_routes.py`: integration tests for login, access control, CSRF protection, and the stock-changing flows.
+- `tests/test_database.py`: database tests proving the keys, CHECK constraints, cascades and indexes are enforced by MySQL itself.
+- `tests/test_services.py`: paging, sorting, filtering, error types and role rules of the services layer.
 
 ## Project structure
 
 ```
 app/
-  __init__.py         create_app(): settings, login, CSRF, error pages
+  __init__.py         create_app(): settings, database, login, CSRF, error pages, flask commands
+  extensions.py       the shared database (SQLAlchemy) and migration objects
+  models/             MySQL tables as SQLAlchemy classes (keys, checks, indexes)
   blueprints/         one file per feature: auth, dashboard, inventory, allocation, procurement
-  services/           the only layer that touches data (swap for MySQL later) and calls the models
-  data/seed_data.py   synthetic demo data (in memory)
+  services/           the only layer that touches the database; calls the supply chain models
+                      (errors.py: error types; pagination.py: paging, sorting, input checks)
+  data/seed_data.py   synthetic demo data, loaded with `flask seed`
   templates/          one HTML file per page + base.html and _macros.html
   static/css/         style.css (on top of Bootstrap CSS)
-  models/             (reserved) database table classes for the MySQL version
   schemas/            (reserved) request/response schemas for the REST API version
 models/               supply chain model: pure Python, no Flask, no database
   safety_stock.py     average demand, std deviation, safety stock, reorder point
   allocation.py       turnover ranking, greedy drawer allocation, restock split
   procurement.py      order-up-to level, order quantity, supplier grouping, trips saved, EOQ
-tests/                pytest unit and integration tests
+migrations/           Flask-Migrate (Alembic) migration scripts; 0001 builds every table
+docs/                 erd.md + erd.png (data model), schema.sql (generated SQL)
+tests/                pytest unit, database and integration tests
 config.py             DEV / TEST / PROD settings
 run.py                entry point
 ```
@@ -120,98 +173,71 @@ Anything that does not fit stays in central storage.
 A 25% cut in trips (O4) therefore saves about **2.2 hours a month**. This is a modelled estimate, not a measurement.
 
 
+## Roles
+
+| Role | Who | Can |
+|---|---|---|
+| `admin` | The developer | Everything a user can, plus add accounts, switch accounts on/off, change roles, reset passwords |
+| `user` | Mr Msiza and anyone helping him restock | See every page, record counts, log restocks, do stock takes, change own password |
+
+The rules live in one place, `ROLE_PERMISSIONS` in `app/services/user_service.py`. Routes ask
+`user_service.can(current_user, "manage_users")`. The account functions also check the role themselves, so a missing check in a
+route cannot let a normal user manage accounts. An admin cannot switch off or demote themselves, and there is always at least one active admin.
+
+## Services layer (what the API routes call)
+
+Routes pass the raw query-string text straight in; the services check it. List functions return one page:
+`{"items": [...], "page", "per_page", "total", "pages", "has_prev", "has_next"}` (default 20 per page, max 100).
+Sorting: `sort=key` ascending or `sort=-key` descending, only from the allowed keys.
+
+| Function | Filters / sort keys |
+|---|---|
+| `inventory_service.list_machines(search, sort, page, per_page)` | `search` (code or location); sort `code`, `location`, `alerts` |
+| `inventory_service.get_machine_detail(machine_id)` | One machine with its three-tier stock rows |
+| `inventory_service.list_central(search, supplier_id, low_only, sort, page, per_page)` | sort `name`, `supplier`, `qty`, `value` |
+| `inventory_service.list_movements(machine_id, product_id, tier, date_from, date_to, page, per_page)` | Audit trail, newest first, paged in the database |
+| `inventory_service.set_machine_count / restock_visit / set_central_count` | Stock changes (one transaction each, audited) |
+| `alert_service.list_alerts(tier, severity, machine_id, page, per_page)` | `tier` Machine/Drawer/Central, `severity` out/low |
+| `analytics_service.get_allocation(machine_id)` | Drawer recommendation (O3) |
+| `analytics_service.build_shopping_list()` | One order per supplier (O4) |
+| `analytics_service.get_dashboard_summary()` | KPIs, top alerts, order summary, best sellers, sales window |
+| `user_service.list_users / admin_create_user / set_role / set_active / reset_password` | Admin only (first argument is the logged-in user) |
+| `user_service.change_own_password(user, current, new)` | Any logged-in user |
+
+**Errors** (`app/services/errors.py`): `ValidationError` (400), `PermissionDenied` (403), `NotFoundError` (404) and
+`ConflictError` (409). Each has `.status`, `.message`, an optional `.field`, and `.to_dict()`, so one error handler can
+answer every API error in the same JSON shape. All of them are `ValueError`s, so existing `except ValueError` code keeps working.
+
 ## Design decisions
 
 - **No JavaScript.** Every action is an HTML form submit and every page is a server-rendered Jinja template.
   Bootstrap is used for its CSS only. The navigation bar wraps on small screens instead of using a menu button.
 - **One template per page**, with shared pieces (navigation bar, flash messages, KPI cards, stock badges) in `base.html` and `_macros.html`.
 - **Passwords are hashed**, forms are protected by a CSRF token, and login redirects only to pages inside this site.
-- **Services layer.** Routes never touch the data directly, so moving to MySQL means rewriting `app/services` and leaving the templates alone.
+- **Services layer.** Routes never touch the database directly. This paid off in the MySQL move: only `app/services` was rewritten, and no template changed.
 
-## Planned MySQL data model (next stage)
+## Data model (MySQL)
 
-```mermaid
-erDiagram
-    users {
-        int user_id PK
-        string name
-        string email UK
-        string password_hash
-        string role
-        datetime created_at
-    }
-    suppliers {
-        int supplier_id PK
-        string name
-        int lead_time_days
-    }
-    products {
-        int product_id PK
-        string name
-        int supplier_id FK
-        decimal unit_cost
-        int case_size
-    }
-    machines {
-        int machine_id PK
-        string code UK
-        string location
-    }
-    machine_stock {
-        int machine_id PK, FK
-        int product_id PK, FK
-        int qty
-        int capacity
-        int threshold
-    }
-    drawer_stock {
-        int machine_id PK, FK
-        int product_id PK, FK
-        int qty
-        int capacity
-        int threshold
-    }
-    central_storage {
-        int product_id PK, FK
-        int qty
-        int threshold
-    }
-    sales {
-        int sale_id PK
-        int machine_id FK
-        int product_id FK
-        int qty
-        date sale_date
-    }
-    stock_movements {
-        int movement_id PK
-        int machine_id FK
-        int product_id FK
-        int user_id FK
-        string tier
-        int old_qty
-        int new_qty
-        string note
-        datetime created_at
-    }
-    suppliers ||--o{ products : supplies
-    products ||--o{ machine_stock : "stocked in"
-    machines ||--o{ machine_stock : holds
-    products ||--o{ drawer_stock : "buffered in"
-    machines ||--o{ drawer_stock : has
-    products ||--|| central_storage : "pooled in"
-    machines ||--o{ sales : records
-    products ||--o{ sales : "sold as"
-    users ||--o{ stock_movements : makes
-    products ||--o{ stock_movements : "moves"
-```
+![SmartStock ERD](docs/erd.png)
 
-In this lean version the tables are Python dictionaries in `app/data/seed_data.py`, and each `(machine, product)` pair keeps a list of 30 daily sales numbers instead of dated `sales` rows.
+Nine tables in third normal form: `users`, `suppliers`, `products`, `machines`, one table per stock tier
+(`machine_stock`, `drawer_stock`, `central_stock`), daily `sales` totals, and the `stock_movements` audit trail.
+Every table has `created_at` / `updated_at` audit columns.
+
+- **Constraints in the database, not only in Python:** CHECK constraints stop stock going negative or above a
+  slot's capacity; foreign keys use RESTRICT, CASCADE or SET NULL depending on what should happen on delete.
+- **Indexes match how the app reads data:** for example `sales (product_id, sale_date)` for fleet-wide 30-day demand,
+  and `machine_stock (product_id, machine_id)` for stock per product across all machines.
+- **Every stock change is one transaction:** the stock rows are locked (`SELECT ... FOR UPDATE`) and the audit row
+  is saved together with the change, or not at all.
+- **The 30-day window ends on the latest recorded sale**, so a demo database seeded a week ago still shows a full month.
+
+Full detail (constraint and index tables, normalisation notes): [`docs/erd.md`](docs/erd.md). Generated SQL: [`docs/schema.sql`](docs/schema.sql).
 
 ## Known limitations
 
-- Data lives in memory and **resets when the server restarts** (MySQL is the next stage).
-- No live sensor feed: machine stock is a manual count.
+- No live sensor feed: machine stock is a manual count, and sales come from the demo seed (in production they would
+  come from the machines' sales feed).
 - No pagination or column sorting yet (both need extra work for the final stage).
 - Runs on Flask's development server; no production deployment was done for the semester project.
 
@@ -219,5 +245,5 @@ In this lean version the tables are Python dictionaries in `app/data/seed_data.p
 
 | Member | Student no. | Files owned | Reviewed by |
 |---|---|---|---|
-| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), `config.py`, `run.py`, `.env.example`, `README.md` | Josua Olivier |
-| Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`), app factory (`app/__init__.py`), integration tests (`tests/test_routes.py`) | Claudia Aird |
+| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management) and their tests (`tests/test_services.py`), `config.py`, `run.py`, `.env.example`, deployment runbook, `README.md` | Josua Olivier |
+| Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`) including the REST API routes, app factory (`app/__init__.py`), integration tests (`tests/test_routes.py`); API contract (OpenAPI file and endpoint list), README screenshots, impact and sustainability report (before/after KPI table and charts) | Claudia Aird |
