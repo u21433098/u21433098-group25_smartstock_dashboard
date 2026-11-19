@@ -1,4 +1,4 @@
-{# Reusable pieces. Import with:  {% from "_macros.html" import csrf_input, kpi_card %} #}
+{# Reusable pieces. Import with:  {% from "_macros.html" import csrf_input, kpi_card, sort_th, pagination %} #}
 
 {# --- hidden CSRF token: put inside every <form method="post"> --- #}
 {% macro csrf_input() %}
@@ -6,11 +6,11 @@
 {% endmacro %}
 
 {# --- KPI card used on the dashboard --- #}
-{% macro kpi_card(label, value, hint="", tone="primary") %}
+{% macro kpi_card(label, value, hint="", tone="primary", href=none) %}
 <div class="col-6 col-lg-3">
   <div class="card kpi-card kpi-{{ tone }} h-100">
     <div class="card-body">
-      <div class="kpi-label">{{ label }}</div>
+      <div class="kpi-label">{% if href %}<a class="stretched-link kpi-link" href="{{ href }}">{{ label }}</a>{% else %}{{ label }}{% endif %}</div>
       <div class="kpi-value">{{ value }}</div>
       {% if hint %}<div class="kpi-hint">{{ hint }}</div>{% endif %}
     </div>
@@ -28,4 +28,63 @@
 {# --- message shown when a list has nothing in it --- #}
 {% macro empty_state(message) %}
 <div class="empty-state text-center text-muted py-4">{{ message }}</div>
+{% endmacro %}
+
+{# --- sortable column header (no JavaScript: each header is a link) ---
+   `current` is the active sort, e.g. "name" or "-qty" (minus = descending).
+   Clicking the active column flips the direction; aria-sort tells screen readers. #}
+{% macro sort_th(label, key, current, class_="") %}
+{% set active = current.lstrip('-') == key %}
+{% set desc = current.startswith('-') %}
+{% set target = ('-' ~ key) if (active and not desc) else key %}
+<th scope="col" class="{{ class_ }}"{% if active %} aria-sort="{{ 'descending' if desc else 'ascending' }}"{% endif %}>
+  <a class="sort-link{{ ' active' if active }}" href="{{ url_with(sort=target, page=none) }}">{{ label }}<span class="sort-icon" aria-hidden="true">{% if active %}{{ '▼' if desc else '▲' }}{% else %}↕{% endif %}</span><span class="visually-hidden">{% if active %} (sorted {{ 'high to low' if desc else 'low to high' }}){% endif %}, sort by {{ label|lower }}</span></a>
+</th>
+{% endmacro %}
+
+{# --- "Showing 11-20 of 37" plus page links; `result` is a services page envelope --- #}
+{% macro pagination(result, label) %}
+{% if result.total %}
+{% set first = (result.page - 1) * result.per_page + 1 %}
+{% set last = [result.page * result.per_page, result.total]|min %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top">
+  <p class="small text-muted mb-0">Showing {{ first }}&ndash;{{ last }} of {{ result.total }}</p>
+  {% if result.pages > 1 %}
+  <nav aria-label="{{ label }} pages">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item{{ ' disabled' if not result.has_prev }}">
+        {% if result.has_prev %}<a class="page-link" rel="prev" href="{{ url_with(page=result.page - 1) }}">Previous</a>
+        {% else %}<span class="page-link">Previous</span>{% endif %}
+      </li>
+      {% for n in range(1, result.pages + 1) %}
+        {% if n == 1 or n == result.pages or (n - result.page)|abs <= 2 %}
+          <li class="page-item{{ ' active' if n == result.page }}">
+            {% if n == result.page %}<span class="page-link" aria-current="page">{{ n }}</span>
+            {% else %}<a class="page-link" href="{{ url_with(page=n) }}" aria-label="Page {{ n }}">{{ n }}</a>{% endif %}
+          </li>
+        {% elif (n - result.page)|abs == 3 %}
+          <li class="page-item disabled"><span class="page-link" aria-hidden="true">&hellip;</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item{{ ' disabled' if not result.has_next }}">
+        {% if result.has_next %}<a class="page-link" rel="next" href="{{ url_with(page=result.page + 1) }}">Next</a>
+        {% else %}<span class="page-link">Next</span>{% endif %}
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# --- warning shown when a filter, sort or page value in the address was not valid --- #}
+{% macro list_error(error) %}
+{% if error %}
+<div class="alert alert-warning" role="alert">{{ error }} Showing the unfiltered list instead.</div>
+{% endif %}
+{% endmacro %}
+
+{# --- "no results" message that offers to clear the filters --- #}
+{% macro no_matches(message, clear_url) %}
+<div class="empty-state text-center text-muted py-4">{{ message }} <a href="{{ clear_url }}">Clear the filters</a>.</div>
 {% endmacro %}

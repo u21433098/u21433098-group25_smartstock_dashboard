@@ -1,27 +1,65 @@
 {% extends "base.html" %}
-{% from "_macros.html" import empty_state %}
+{% from "_macros.html" import empty_state, pagination, list_error, no_matches %}
 {% block title %}Alerts{% endblock %}
 {% block content %}
 
 <h1 class="h3">Low-stock alerts</h1>
 <p class="text-muted">Any tier (machine, drawer or central storage) at or below its threshold. Out-of-stock items are listed first.</p>
+
+{{ list_error(error) }}
+
+<form method="get" action="{{ url_for('dashboard.all_alerts') }}" class="card card-body mb-3 filter-bar" aria-label="Filter alerts">
+  <div class="row g-2 align-items-end">
+    <div class="col-6 col-md-3">
+      <label for="tier" class="form-label small mb-1">Tier</label>
+      <select class="form-select" id="tier" name="tier">
+        <option value="">All tiers</option>
+        {% for t in ("Machine", "Drawer", "Central") %}<option {{ 'selected' if filters.tier == t }}>{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label for="severity" class="form-label small mb-1">Severity</label>
+      <select class="form-select" id="severity" name="severity">
+        <option value="">Low and out of stock</option>
+        <option value="out" {{ 'selected' if filters.severity == 'out' }}>Out of stock only</option>
+        <option value="low" {{ 'selected' if filters.severity == 'low' }}>Low only</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-3">
+      <label for="machine_id" class="form-label small mb-1">Machine</label>
+      <select class="form-select" id="machine_id" name="machine_id">
+        <option value="">All machines</option>
+        {% for m in machines %}<option value="{{ m.id }}" {{ 'selected' if filters.machine_id|string == m.id|string }}>{{ m.code }} ({{ m.location }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-ss">Apply</button></div>
+    {% if filters.tier or filters.severity or filters.machine_id %}
+    <div class="col-auto"><a class="btn btn-outline-secondary" href="{{ url_for('dashboard.all_alerts') }}">Clear</a></div>
+    {% endif %}
+  </div>
+</form>
+
 <div class="card">
   <div class="table-responsive">
-    {% if alerts %}
+    {% if result['items'] %}
     <table class="table align-middle mb-0">
+      <caption class="visually-hidden">Low-stock alerts, most urgent first.</caption>
       <thead><tr><th scope="col">Status</th><th scope="col">Product</th><th scope="col">Tier</th><th scope="col">Location</th><th scope="col" class="text-end">Qty</th><th scope="col" class="text-end">Threshold</th><th scope="col"><span class="visually-hidden">Open</span></th></tr></thead>
       <tbody>
-      {% for a in alerts %}
+      {% for a in result['items'] %}
         <tr>
           <td><span class="badge bg-{{ a.tone }} {{ 'text-dark' if a.tone == 'warning' }}">{{ a.severity }}</span></td>
           <td>{{ a.product }}</td><td>{{ a.tier }}</td><td>{{ a.location }}</td>
           <td class="text-end">{{ a.qty }}</td><td class="text-end">{{ a.threshold }}</td>
-          <td class="text-end">{% if a.machine_id %}<a href="{{ url_for('inventory.machine_detail', machine_id=a.machine_id) }}">Open</a>{% else %}<a href="{{ url_for('inventory.central') }}">Open</a>{% endif %}</td>
+          <td class="text-end">{% if a.machine_id %}<a href="{{ url_for('inventory.machine_detail', machine_id=a.machine_id) }}">Open<span class="visually-hidden"> {{ a.location }}</span></a>{% else %}<a href="{{ url_for('inventory.central', search=a.product) }}">Open<span class="visually-hidden"> central storage</span></a>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
+    {% elif filters.tier or filters.severity or filters.machine_id %}
+      {{ no_matches("No alerts match these filters.", url_for('dashboard.all_alerts')) }}
     {% else %}{{ empty_state("No alerts. Every tier is above its threshold.") }}{% endif %}
   </div>
+  {{ pagination(result, "Alerts") }}
 </div>
 {% endblock %}

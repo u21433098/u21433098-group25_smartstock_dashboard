@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty_state, pagination, list_error, no_matches %}
+{% block title %}Activity{% endblock %}
+{% block content %}
+
+<h1 class="h3">Activity log</h1>
+<p class="text-muted">Every stock change in every tier: who made it, when, and why. Newest first. This replaces the paper log (objective O2).</p>
+
+{{ list_error(error) }}
+
+{% set any_filter = filters.machine_id or filters.product_id or filters.tier or filters.date_from or filters.date_to %}
+<form method="get" action="{{ url_for('inventory.activity') }}" class="card card-body mb-3 filter-bar" aria-label="Filter the activity log">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-sm-6 col-lg-3">
+      <label for="machine_id" class="form-label small mb-1">Machine</label>
+      <select class="form-select" id="machine_id" name="machine_id">
+        <option value="">All machines</option>
+        {% for m in machines %}<option value="{{ m.id }}" {{ 'selected' if filters.machine_id|string == m.id|string }}>{{ m.code }} ({{ m.location }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <label for="product_id" class="form-label small mb-1">Product</label>
+      <select class="form-select" id="product_id" name="product_id">
+        <option value="">All products</option>
+        {% for p in products %}<option value="{{ p.product_id }}" {{ 'selected' if filters.product_id|string == p.product_id|string }}>{{ p.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label for="tier" class="form-label small mb-1">Tier</label>
+      <select class="form-select" id="tier" name="tier">
+        <option value="">All tiers</option>
+        {% for t in ("Machine", "Drawer", "Central") %}<option {{ 'selected' if filters.tier == t }}>{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label for="date_from" class="form-label small mb-1">From</label>
+      <input type="date" class="form-control" id="date_from" name="date_from" value="{{ filters.date_from or '' }}">
+    </div>
+    <div class="col-6 col-lg-2">
+      <label for="date_to" class="form-label small mb-1">To</label>
+      <input type="date" class="form-control" id="date_to" name="date_to" value="{{ filters.date_to or '' }}">
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-ss">Apply</button></div>
+    {% if any_filter %}<div class="col-auto"><a class="btn btn-outline-secondary" href="{{ url_for('inventory.activity') }}">Clear</a></div>{% endif %}
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    {% if result['items'] %}
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Stock changes, newest first.</caption>
+      <thead><tr><th scope="col">Time</th><th scope="col">Machine</th><th scope="col">Product</th><th scope="col">Tier</th><th scope="col">Change</th><th scope="col">Note</th><th scope="col">By</th></tr></thead>
+      <tbody>
+      {% for m in result['items'] %}
+        <tr>
+          <td class="text-nowrap">{{ m.time }}</td>
+          <td>{% if m.machine_id %}<a href="{{ url_for('inventory.machine_detail', machine_id=m.machine_id) }}">{{ m.machine }}</a>{% else %}Central{% endif %}</td>
+          <td>{{ m.product }}</td><td>{{ m.tier }}</td>
+          <td class="text-nowrap">{{ m.old }} &rarr; {{ m.new }}
+            <span class="badge {{ 'bg-success' if m.change > 0 else ('bg-secondary' if m.change == 0 else 'bg-warning text-dark') }}">{{ '%+d'|format(m.change) }}</span></td>
+          <td>{{ m.note }}</td><td>{{ m.user }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% elif any_filter %}{{ no_matches("No stock changes match these filters.", url_for('inventory.activity')) }}
+    {% else %}{{ empty_state("No stock changes recorded yet. Save a count, a restock or a stock take to see it here.") }}{% endif %}
+  </div>
+  {{ pagination(result, "Activity log") }}
+</div>
+{% endblock %}

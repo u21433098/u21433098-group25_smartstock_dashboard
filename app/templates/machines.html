@@ -1,26 +1,50 @@
 {% extends "base.html" %}
-{% from "_macros.html" import empty_state %}
+{% from "_macros.html" import empty_state, sort_th, pagination, list_error, no_matches %}
 {% block title %}Machines{% endblock %}
 {% block content %}
 
 <h1 class="h3">Vending machines</h1>
 <p class="text-muted">Choose a machine to see its machine, drawer and central stock side by side.</p>
+
+{{ list_error(error) }}
+
+<!-- search (a normal GET form: the search ends up in the address, so it can be bookmarked) -->
+<form method="get" action="{{ url_for('inventory.machines') }}" class="card card-body mb-3 filter-bar" role="search" aria-label="Search machines">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-sm-8 col-md-6">
+      <label for="search" class="form-label small mb-1">Search by machine code or location</label>
+      <input type="search" class="form-control" id="search" name="search" value="{{ search }}" placeholder="e.g. Library or UP-03" maxlength="100">
+    </div>
+    {% if request.args.get('sort') and not error %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    <div class="col-auto"><button type="submit" class="btn btn-ss">Search</button></div>
+    {% if search %}<div class="col-auto"><a class="btn btn-outline-secondary" href="{{ url_for('inventory.machines') }}">Clear</a></div>{% endif %}
+  </div>
+</form>
+
 <div class="card">
   <div class="table-responsive">
-    {% if machines %}
+    {% if result['items'] %}
     <table class="table align-middle mb-0">
-      <thead><tr><th scope="col">Machine</th><th scope="col">Location</th><th scope="col">Alerts</th><th scope="col"><span class="visually-hidden">Open</span></th></tr></thead>
+      <caption class="visually-hidden">Vending machines{% if search %} matching "{{ search }}"{% endif %}. Column headers sort the table.</caption>
+      <thead><tr>
+        {{ sort_th("Machine", "code", sort) }}
+        {{ sort_th("Location", "location", sort) }}
+        {{ sort_th("Alerts", "alerts", sort) }}
+        <th scope="col"><span class="visually-hidden">Open</span></th>
+      </tr></thead>
       <tbody>
-      {% for m in machines %}
+      {% for m in result['items'] %}
         <tr>
           <td><strong>{{ m.code }}</strong></td><td>{{ m.location }}</td>
-          <td>{% if alert_counts[m.id] %}<span class="badge bg-danger">{{ alert_counts[m.id] }} low</span>{% else %}<span class="badge bg-success">All OK</span>{% endif %}</td>
+          <td>{% if m.alerts %}<span class="badge bg-danger">{{ m.alerts }} low</span>{% else %}<span class="badge bg-success">All OK</span>{% endif %}</td>
           <td class="text-end"><a class="btn btn-sm btn-ss" href="{{ url_for('inventory.machine_detail', machine_id=m.id) }}">Open {{ m.code }}</a></td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
+    {% elif search %}{{ no_matches('No machines match "' ~ search ~ '".', url_for('inventory.machines')) }}
     {% else %}{{ empty_state("No machines have been set up yet.") }}{% endif %}
   </div>
+  {{ pagination(result, "Machine list") }}
 </div>
 {% endblock %}
