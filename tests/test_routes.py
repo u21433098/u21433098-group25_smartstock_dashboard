@@ -1,29 +1,14 @@
 """Integration tests: pages, login, and the stock-changing forms.
 
-Each test gets a brand-new app (and fresh demo data) from the `app` fixture.
+Each test gets a brand-new app (and fresh demo data) from the `app` fixture in conftest.py.
 """
 import pytest
 
-from app import create_app
 from app.data import seed_data
 from app.extensions import db
 from app.models import CentralStock, DrawerStock, Machine, MachineStock, Product, Sale
 
 EMAIL, PASSWORD = "msiza@adlers.test", "SmartStock123"
-
-
-@pytest.fixture
-def app():
-    """A new app. The testing configuration builds and seeds a fresh database for it."""
-    app = create_app("testing")
-    with app.app_context():
-        yield app
-        db.session.remove()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
 
 
 @pytest.fixture
@@ -34,13 +19,13 @@ def logged_in(client):
 
 def qty(model, *key):
     """Current quantity of one stock row, read fresh from the database."""
-    db.session.expire_all()
+    db.session.rollback()   # see what the requests committed
     return db.session.get(model, key if len(key) > 1 else key[0]).qty
 
 
 def total_stock(product_id):
     """Machine + drawer + central units of one product, summed over the whole fleet."""
-    db.session.expire_all()
+    db.session.rollback()   # see what the requests committed
     total = db.session.get(CentralStock, product_id).qty
     for model in (MachineStock, DrawerStock):
         total += db.session.scalar(db.select(db.func.sum(model.qty)).where(model.product_id == product_id))
@@ -62,14 +47,19 @@ def test_seed_data_is_complete_and_consistent(app):
 
 # ------------------------------------------------------------------ login and access
 def test_pages_redirect_to_login_when_logged_out(client):
-    for url in ("/", "/machines", "/allocation", "/shopping-list", "/alerts", "/central"):
+    for url in ("/", "/machines", "/allocation", "/shopping-list", "/alerts", "/central",
+                "/activity", "/account/password", "/admin/users"):
         response = client.get(url)
         assert response.status_code == 302 and "/login" in response.headers["Location"]
 
 
-def test_login_and_register_pages_load(client):
-    assert client.get("/login").status_code == 200
-    assert client.get("/register").status_code == 200
+def test_login_page_loads_and_public_registration_is_gone(client):
+    page = client.get("/login")
+    assert page.status_code == 200 and b"/register" not in page.data
+    assert b"added by the SmartStock admin" in page.data
+    assert client.get("/register").status_code == 404
+    assert client.post("/register", data={"name": "X", "email": "x@y.co", "password": "longenough1",
+                                          "confirm": "longenough1"}).status_code == 404
 
 
 def test_login_with_correct_details_shows_dashboard(client):
@@ -85,21 +75,6 @@ def test_login_with_wrong_password_is_rejected(client):
 def test_login_will_not_redirect_to_another_site(client):
     response = client.post("/login?next=//evil.example", data={"email": EMAIL, "password": PASSWORD})
     assert "evil.example" not in response.headers["Location"]
-
-
-def test_register_then_login(client):
-    client.post("/register", data={"name": "Test User", "email": "new@adlers.test",
-                                   "password": "longenough1", "confirm": "longenough1"})
-    response = client.post("/login", data={"email": "new@adlers.test", "password": "longenough1"},
-                           follow_redirects=True)
-    assert b"SmartStock dashboard" in response.data
-
-
-def test_register_rejects_short_password_and_duplicate_email(client):
-    short = client.post("/register", data={"name": "A", "email": "a@b.co", "password": "short", "confirm": "short"})
-    assert b"at least 8 characters" in short.data
-    dup = client.post("/register", data={"name": "A", "email": EMAIL, "password": "longenough1", "confirm": "longenough1"})
-    assert b"already exists" in dup.data
 
 
 def test_forms_are_rejected_without_a_csrf_token(app):
@@ -176,6 +151,7 @@ def test_shopping_list_orders_less_after_a_big_delivery(logged_in):
     with logged_in.application.test_request_context():
         before = analytics_service.build_shopping_list()["total_cost"]
     logged_in.post("/central/1", data={"qty": 5000})
+    db.session.rollback()   # see what the request committed
     with logged_in.application.test_request_context():
         after = analytics_service.build_shopping_list()["total_cost"]
     assert after < before
@@ -184,7 +160,7 @@ def test_shopping_list_orders_less_after_a_big_delivery(logged_in):
 def test_restock_never_overfills_the_drawer(logged_in):
     for product_id in list(db.session.scalars(db.select(DrawerStock.product_id).where(DrawerStock.machine_id == 2))):
         logged_in.post("/machines/2/restock", data={"product_id": product_id, "units": 100})
-    db.session.expire_all()
+    db.session.rollback()   # see what the requests committed
     drawer_total = db.session.scalar(db.select(db.func.sum(DrawerStock.qty)).where(DrawerStock.machine_id == 2))
     assert drawer_total <= 50
 
