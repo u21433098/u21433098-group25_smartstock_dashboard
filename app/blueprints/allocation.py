@@ -1,5 +1,5 @@
 """Allocation recommendations: what belongs in the drawer (objective O3)."""
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from app.services import analytics_service, inventory_service
@@ -17,6 +17,9 @@ def require_login():
 @bp.route("/allocation")
 def view():
     machines = inventory_service.get_machines()
+    if not machines:   # empty database (before `flask seed`)
+        flash("No machines are set up yet.", "warning")
+        return redirect(url_for("inventory.machines"))
     machine_id = request.args.get("machine", default=machines[0]["id"], type=int)
     machine = inventory_service.get_machine(machine_id)
     if machine is None:
