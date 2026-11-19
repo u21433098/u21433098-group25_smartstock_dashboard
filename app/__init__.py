@@ -5,7 +5,7 @@ import secrets
 from flask import Flask, abort, render_template, request, session
 from flask_login import LoginManager, current_user
 
-from app.data import seed_data
+from app.extensions import init_db
 from app.services import alert_service, user_service
 from config import config_by_name
 
@@ -20,8 +20,9 @@ def create_app(config_name="development"):
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    # Fresh demo data every time an app is created (keeps tests independent).
-    seed_data.reset()
+    # Database (MySQL): tables, migrations and the `flask seed` / `flask create-admin` commands.
+    # In the testing configuration this also builds a fresh, seeded test database.
+    init_db(app)
 
     # ---- login handling (Flask-Login) ----
     login_manager.init_app(app)
