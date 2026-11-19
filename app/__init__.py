@@ -2,7 +2,7 @@
 import logging
 import secrets
 
-from flask import Flask, abort, render_template, request, session
+from flask import Flask, abort, jsonify, render_template, request, session, url_for
 from flask_login import LoginManager, current_user
 
 from app.extensions import init_db
@@ -34,8 +34,9 @@ def create_app(config_name="development"):
     def load_user(user_id):
         return user_service.get_user(user_id)
 
-    # ---- CSRF protection for every form (no JavaScript needed) ----
-    # Each form carries a hidden token; a POST without the matching token is rejected.
+    # ---- CSRF protection for every change (no JavaScript needed) ----
+    # Web forms carry the token in a hidden field; API clients send it in the
+    # X-CSRF-Token header. A change without the matching token is rejected.
     def csrf_token():
         if "_csrf_token" not in session:
             session["_csrf_token"] = secrets.token_hex(16)
@@ -44,18 +45,40 @@ def create_app(config_name="development"):
     app.jinja_env.globals["csrf_token"] = csrf_token
 
     @app.before_request
-    def protect_post_requests():
-        if app.config["CSRF_ENABLED"] and request.method == "POST":
-            sent = request.form.get("csrf_token", "").encode()
-            expected = session.get("_csrf_token", "").encode()
-            if not expected or not secrets.compare_digest(sent, expected):
-                abort(400)
+    def protect_changes():
+        if not app.config["CSRF_ENABLED"] or request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+            return None
+        if _is_api():
+            sent = request.headers.get("X-CSRF-Token", "")
+        else:
+            sent = request.form.get("csrf_token", "")
+        expected = session.get("_csrf_token", "")
+        if not expected or not secrets.compare_digest(sent.encode(), expected.encode()):
+            if _is_api():
+                return _json_error(400, "Missing or wrong CSRF token. Get one from GET /api/v1/auth/csrf "
+                                        "and send it in the X-CSRF-Token header.")
+            abort(400)
+        return None
 
     # ---- template helpers ----
     @app.template_filter("rand")
     def rand(value, decimals=0):
         """Format a number as South African rand, e.g. R 4,820."""
         return f"R {value:,.{decimals}f}"
+
+    app.jinja_env.globals["query_args"] = query_args
+
+    @app.template_global()
+    def url_with(**changes):
+        """This page's address with some query values changed, e.g. url_with(page=2).
+
+        Keeps the other filters, so sorting or paging never loses the search.
+        A value of None removes that parameter.
+        """
+        args = query_args()
+        args.update(changes)
+        args = {k: v for k, v in args.items() if v not in (None, "")}
+        return url_for(request.endpoint, **(request.view_args or {}), **args)
 
     @app.context_processor
     def inject_alert_count():
@@ -65,24 +88,63 @@ def create_app(config_name="development"):
         return {"alert_count": 0}
 
     # ---- blueprints (one per feature area) ----
-    from app.blueprints import allocation, auth, dashboard, inventory, procurement
-    for module in (auth, dashboard, inventory, allocation, procurement):
+    from app.blueprints import admin, allocation, api, auth, dashboard, inventory, procurement
+    for module in (auth, dashboard, inventory, allocation, procurement, admin, api):
         app.register_blueprint(module.bp)
 
-    # ---- error pages ----
-    @app.errorhandler(404)
-    def not_found(_error):
-        return render_template("404.html"), 404
-
+    # ---- error pages (HTML), or JSON errors for /api/... addresses ----
     @app.errorhandler(400)
     def bad_request(_error):
+        if _is_api():
+            return _json_error(400, "The request could not be understood.")
         return render_template("error.html", code=400,
                                message="That request could not be processed. The form may have "
                                        "expired, so please go back and try again."), 400
 
+    @app.errorhandler(403)
+    def forbidden(_error):
+        if _is_api():
+            return _json_error(403, "You do not have permission to do that.")
+        return render_template("error.html", code=403,
+                               message="Only an admin can open that page."), 403
+
+    @app.errorhandler(404)
+    def not_found(_error):
+        if _is_api():
+            return _json_error(404, "There is no such API address. See /api/v1/openapi.json.")
+        return render_template("404.html"), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(_error):
+        if _is_api():
+            return _json_error(405, f"{request.method} is not allowed on this address.")
+        return render_template("error.html", code=405,
+                               message="That page cannot be used that way."), 405
+
     @app.errorhandler(500)
     def server_error(_error):
+        if _is_api():
+            return _json_error(500, "Something went wrong on our side. Please try again.")
         return render_template("error.html", code=500,
                                message="Something went wrong on our side. Please try again."), 500
 
     return app
+
+
+def query_args():
+    """The address's query values (?search=...&page=2), safe to pass on to url_for().
+
+    Names starting with "_" are dropped: url_for() treats _external, _anchor, _scheme and
+    _method as instructions, so passing them on would let a crafted link change where
+    the page's own links and redirects point.
+    """
+    return {k: v for k, v in request.args.to_dict().items() if not k.startswith("_")}
+
+
+def _is_api():
+    """True for requests to the JSON API (they get JSON errors, not HTML pages)."""
+    return request.path.startswith("/api/")
+
+
+def _json_error(status, message):
+    return jsonify({"error": {"status": status, "message": message}}), status
