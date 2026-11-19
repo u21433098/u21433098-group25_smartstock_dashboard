@@ -23,6 +23,29 @@ It replaces the paper log and goes beyond what the third-party app Moma tracks.
 | Consolidated shopping list, one order per supplier | Shopping list | O4 |
 | Low-stock alerts across all three tiers | Alerts | O3, O5 |
 | KPI dashboard (alerts, central value, trips saved, best sellers, impact estimate) | Dashboard | O5 |
+| Activity log: every stock change with who, when and why, filterable | Activity | O2 |
+| Search, filters, sortable columns and paging on every list (no JavaScript) | Machines, Central storage, Alerts, Activity | O2, O5 |
+| Accounts for Mr Msiza and his helpers, managed by the admin (no public sign-up) | Users (admin only), Account | Roles |
+| REST API with the same data and actions, plus an OpenAPI contract | `/api/v1/...` ([docs/api.md](docs/api.md)) | All |
+
+## Screenshots and end-to-end flows
+
+Five complete flows (alert to restock, shopping list to stock take, following the drawer recommendation, the admin
+adding and removing a helper, and an outside program restocking through the API) are described step by step with
+screenshots in [**docs/e2e_flows.md**](docs/e2e_flows.md). They are tested end to end in `tests/test_e2e.py`, and
+`scripts/capture_screenshots.py` replays them in a real browser to take the screenshots.
+
+| Dashboard | One machine, all three tiers, after a restock |
+|---|---|
+| ![Dashboard](docs/screenshots/02_dashboard.png) | ![Restock saved](docs/screenshots/05_flow1_restock_saved.png) |
+
+| Shopping list, one order per supplier | Machines sorted by alerts, paged | Admin: user accounts |
+|---|---|---|
+| ![Shopping list](docs/screenshots/07_flow2_shopping_list_before.png) | ![Machines](docs/screenshots/11_machines_sorted_by_alerts.png) | ![Users](docs/screenshots/16_flow4_admin_users.png) |
+
+| Empty state | Error state (bad value in the address) | Phone |
+|---|---|---|
+| ![Empty](docs/screenshots/13_empty_state_no_match.png) | ![Error](docs/screenshots/14_error_state_bad_sort.png) | ![Phone](docs/screenshots/18_phone_dashboard.png) |
 
 ## Quick start (Windows PowerShell)
 
@@ -101,6 +124,12 @@ grant the `smartstock` user access, and set `TEST_DATABASE_URL` in `.env` (see `
 - `tests/test_routes.py`: integration tests for login, access control, CSRF protection, and the stock-changing flows.
 - `tests/test_database.py`: database tests proving the keys, CHECK constraints, cascades and indexes are enforced by MySQL itself.
 - `tests/test_services.py`: paging, sorting, filtering, error types and role rules of the services layer.
+- `tests/test_api.py`: every REST API endpoint: login, CSRF header, validation, JSON errors, paging and roles.
+- `tests/test_openapi.py`: the OpenAPI contract matches the code (every route documented, real responses match the schemas).
+- `tests/test_pages.py`: search, filters, sorting and paging on the pages, empty and error states, accessibility basics.
+- `tests/test_admin.py`: the admin pages and "change my password".
+- `tests/test_e2e.py`: the five end-to-end flows in `docs/e2e_flows.md`.
+- `tests/conftest.py`: shared fixtures (a fresh demo database per test, logged-in web and API clients).
 
 ## Project structure
 
@@ -109,20 +138,23 @@ app/
   __init__.py         create_app(): settings, database, login, CSRF, error pages, flask commands
   extensions.py       the shared database (SQLAlchemy) and migration objects
   models/             MySQL tables as SQLAlchemy classes (keys, checks, indexes)
-  blueprints/         one file per feature: auth, dashboard, inventory, allocation, procurement
+  blueprints/         one file per feature: auth, dashboard, inventory, allocation, procurement,
+                      admin (user accounts) and api (the REST API, /api/v1)
   services/           the only layer that touches the database; calls the supply chain models
                       (errors.py: error types; pagination.py: paging, sorting, input checks)
   data/seed_data.py   synthetic demo data, loaded with `flask seed`
   templates/          one HTML file per page + base.html and _macros.html
   static/css/         style.css (on top of Bootstrap CSS)
-  schemas/            (reserved) request/response schemas for the REST API version
+  schemas/            checks for the JSON the REST API receives (types, ranges, unknown fields)
 models/               supply chain model: pure Python, no Flask, no database
   safety_stock.py     average demand, std deviation, safety stock, reorder point
   allocation.py       turnover ranking, greedy drawer allocation, restock split
   procurement.py      order-up-to level, order quantity, supplier grouping, trips saved, EOQ
 migrations/           Flask-Migrate (Alembic) migration scripts; 0001 builds every table
-docs/                 erd.md + erd.png (data model), schema.sql (generated SQL)
-tests/                pytest unit, database and integration tests
+docs/                 erd.md + erd.png (data model), schema.sql (generated SQL),
+                      api.md + openapi.json (API), e2e_flows.md + screenshots/, impact_report.md + impact/
+scripts/              capture_screenshots.py, benchmark.py, impact_report.py (documentation tools)
+tests/                pytest unit, database, API, contract, page and end-to-end tests
 config.py             DEV / TEST / PROD settings
 run.py                entry point
 ```
@@ -214,7 +246,50 @@ answer every API error in the same JSON shape. All of them are `ValueError`s, so
   Bootstrap is used for its CSS only. The navigation bar wraps on small screens instead of using a menu button.
 - **One template per page**, with shared pieces (navigation bar, flash messages, KPI cards, stock badges) in `base.html` and `_macros.html`.
 - **Passwords are hashed**, forms are protected by a CSRF token, and login redirects only to pages inside this site.
+  There is no public sign-up: the admin adds each account.
+- **Lists without JavaScript.** Search, filters, sorting and paging are part of the address
+  (e.g. `/central?supplier_id=3&sort=-value&page=2`), so views can be bookmarked and the Back button works.
+  Column headers are links that tell screen readers the sort order. A bad value in the address shows a warning and
+  the unfiltered list instead of an error page.
+- **One API, same rules.** The REST API calls the same services as the pages, so validation, roles and the audit
+  trail are identical. It uses the login session; changes need the CSRF token in an `X-CSRF-Token` header.
 - **Services layer.** Routes never touch the database directly. This paid off in the MySQL move: only `app/services` was rewritten, and no template changed.
+
+## REST API
+
+The API gives other programs (a sensor bridge, a phone app, Postman) the same data and actions as the pages.
+Full guide with real examples: [**docs/api.md**](docs/api.md). Machine-readable contract (OpenAPI 3):
+[**docs/openapi.json**](docs/openapi.json), also served by the app at `/api/v1/openapi.json`.
+
+| Method | Address (after `/api/v1`) | Who | What |
+|---|---|---|---|
+| GET | `/auth/csrf` | anyone | CSRF token and session (call first) |
+| POST | `/auth/login`, `/auth/logout` | anyone / logged in | Log in, log out |
+| GET | `/auth/me` | logged in | Who am I, permissions, CSRF token |
+| PUT | `/me/password` | logged in | Change my password |
+| GET | `/dashboard` | logged in | KPIs, top alerts, order summary, best sellers |
+| GET | `/machines`, `/machines/{id}` | logged in | Machines (search, sort, page); one machine with all three tiers |
+| PUT | `/machines/{id}/stock/{product_id}` | logged in | Record a machine count |
+| POST | `/machines/{id}/restocks` | logged in | Log a restock visit |
+| GET | `/machines/{id}/allocation` | logged in | Drawer allocation ranking (O3) |
+| GET, PUT | `/central`, `/central/{product_id}` | logged in | Central storage (filter, sort, page); stock take |
+| GET | `/alerts`, `/movements` | logged in | Low-stock alerts; the audit trail (filters, paging) |
+| GET | `/shopping-list` | logged in | One order per supplier (O4) |
+| GET, POST | `/users` | admin | List accounts; add an account |
+| PATCH, PUT | `/users/{id}`, `/users/{id}/password` | admin | Role or on/off; reset a password |
+
+Errors always look like `{"error": {"status": 400, "message": "...", "field": "qty"}}`.
+
+## Impact report
+
+[**docs/impact_report.md**](docs/impact_report.md) compares the paper-and-Moma baseline from the proposal with
+SmartStock running on the demo data, with charts, sustainability and a measured scalability test (12 to 200 machines).
+Headlines (modelled on synthetic data; assumptions are listed in the report):
+
+- 3 of 3 stock tiers tracked instead of 1; 111 paper records replaced; one screen per machine instead of three.
+- 40% fewer supplier trips for the same order (O4 target: 25%), about 3.5 hours less driving a month.
+- 12 low-stock alerts visible instead of 4, and all 4 machine shortages shown with drawer stock that can fix them.
+- At 200 machines the slowest page is still built in about 0.13 seconds.
 
 ## Data model (MySQL)
 
@@ -238,12 +313,13 @@ Full detail (constraint and index tables, normalisation notes): [`docs/erd.md`](
 
 - No live sensor feed: machine stock is a manual count, and sales come from the demo seed (in production they would
   come from the machines' sales feed).
-- No pagination or column sorting yet (both need extra work for the final stage).
 - Runs on Flask's development server; no production deployment was done for the semester project.
+- No limit on login attempts yet: failed logins are logged (`Failed login for ...`), but repeated guessing is not
+  slowed down. Adding a short lock-out after several failures would be the next security step.
 
 ## Task allocation
 
 | Member | Student no. | Files owned | Reviewed by |
 |---|---|---|---|
 | Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management) and their tests (`tests/test_services.py`), `config.py`, `run.py`, `.env.example`, deployment runbook, `README.md` | Josua Olivier |
-| Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`) including the REST API routes, app factory (`app/__init__.py`), integration tests (`tests/test_routes.py`); API contract (OpenAPI file and endpoint list), README screenshots, impact and sustainability report (before/after KPI table and charts) | Claudia Aird |
+| Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`) including the REST API (`api.py`), admin pages (`admin.py`) and list helpers (`_listing.py`); API request checks (`app/schemas/`); app factory (`app/__init__.py`); tests for routes, API, contract, pages, admin and end-to-end flows (`tests/test_routes.py`, `test_api.py`, `test_openapi.py`, `test_pages.py`, `test_admin.py`, `test_e2e.py`, `conftest.py`); API contract (`docs/openapi.json`, `docs/api.md`), end-to-end flows and screenshots (`docs/e2e_flows.md`, `docs/screenshots/`, `scripts/capture_screenshots.py`), impact and sustainability report (`docs/impact_report.md`, `docs/impact/`, `scripts/impact_report.py`, `scripts/benchmark.py`), README sections: screenshots, REST API, impact report | Claudia Aird |
