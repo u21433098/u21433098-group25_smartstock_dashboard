@@ -1,0 +1,63 @@
+{
+  "machines": 12,
+  "tiers_tracked": {
+    "before": 1,
+    "after": 3
+  },
+  "paper_records_digitised": {
+    "drawer_slots": 96,
+    "central_products": 15,
+    "total": 111
+  },
+  "views_for_one_machine": {
+    "before": 3,
+    "after": 1
+  },
+  "alerts_by_tier": {
+    "Machine": 4,
+    "Drawer": 3,
+    "Central": 5
+  },
+  "alerts_visible": {
+    "before": 4,
+    "after": 12
+  },
+  "machine_shortages": {
+    "total": 4,
+    "fixable_from_drawer": 4,
+    "fixable_from_central": 4
+  },
+  "order_cycle": {
+    "products_to_order": 5,
+    "suppliers": 3,
+    "trips_before": 5,
+    "trips_after": 3,
+    "trips_saved": 2,
+    "reduction": 0.4
+  },
+  "driving_hours_per_month": {
+    "before": 8.7,
+    "o4_target": 6.5,
+    "demo_order": 5.2,
+    "saved_demo_order": 3.5
+  },
+  "fuel_and_co2_per_month": {
+    "trips_saved": 3.5,
+    "km_saved": 52.0,
+    "litres_saved": 4.2,
+    "kg_co2e_saved": 9.8
+  },
+  "allocation_rankings": {
+    "machines_with_ranking": 12,
+    "of": 12
+  },
+  "audit_trail_rows_on_fresh_demo": 0,
+  "assumptions": {
+    "baseline_trips_per_week": 2,
+    "minutes_per_trip": 60,
+    "o4_target_reduction": 0.25,
+    "km_per_trip": 15,
+    "litres_per_100km": 8.0,
+    "kg_co2e_per_litre_petrol": 2.345
+  }
+}
