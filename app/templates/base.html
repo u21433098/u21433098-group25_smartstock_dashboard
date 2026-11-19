@@ -38,16 +38,20 @@
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('inventory.central') }}" href="{{ url_for('inventory.central') }}">Central storage</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'allocation.view' }}" href="{{ url_for('allocation.view') }}">Allocation</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'procurement.shopping_list' }}" href="{{ url_for('procurement.shopping_list') }}">Shopping list</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'dashboard.all_alerts' }}" href="{{ url_for('dashboard.all_alerts') }}">Alerts{% if alert_count %} <span class="badge bg-danger">{{ alert_count }}</span>{% endif %}</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'dashboard.all_alerts' }}" href="{{ url_for('dashboard.all_alerts') }}">Alerts{% if alert_count %} <span class="badge bg-danger">{{ alert_count }}<span class="visually-hidden"> open alerts</span></span>{% endif %}</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'inventory.activity' }}" href="{{ url_for('inventory.activity') }}">Activity</a></li>
+        {% if current_user.is_admin %}
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('admin.') }}" href="{{ url_for('admin.users') }}">Users</a></li>
+        {% endif %}
         {% else %}
-        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'auth.login' }}" href="{{ url_for('auth.login') }}">Login</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'auth.register' }}" href="{{ url_for('auth.register') }}">Register</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'auth.login' }}" href="{{ url_for('auth.login') }}">Log in</a></li>
         {% endif %}
       </ul>
       {% if current_user.is_authenticated %}
       <form method="post" action="{{ url_for('auth.logout') }}" class="ss-logout">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <span class="text-white-50 me-2 small">{{ current_user.name }}</span>
+        <a class="me-2 small ss-account {{ 'active' if request.endpoint == 'auth.change_password' }}" href="{{ url_for('auth.change_password') }}"
+           title="Change your password">{{ current_user.name }}{% if current_user.is_admin %} (admin){% endif %}<span class="visually-hidden">: account settings</span></a>
         <button type="submit" class="btn btn-sm btn-outline-light">Log out</button>
       </form>
       {% endif %}
@@ -56,10 +60,10 @@
 
   
   <main id="main" class="container py-4">
-    {# flash messages (success / danger / warning / info) #}
+    {# flash messages (success / danger / warning / info); errors are announced at once, others politely #}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
-        <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+        <div class="alert alert-{{ category }}" role="{{ 'alert' if category in ('danger', 'warning') else 'status' }}">{{ message }}</div>
       {% endfor %}
     {% endwith %}
     {% block content %}{% endblock %}

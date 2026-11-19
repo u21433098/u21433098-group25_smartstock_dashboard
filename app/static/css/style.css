@@ -13,7 +13,9 @@ body { background: var(--ss-bg); color: var(--ss-ink); }
 
 /* ----- navigation bar ----- */
 .ss-navbar { background: var(--ss-navy); }
-.ss-nav-inner { flex-wrap: wrap; gap: .25rem 1rem; }   /* wraps on phones instead of needing a menu button */
+/* wraps on phones instead of needing a menu button. The double class beats Bootstrap's
+   ".navbar > .container-fluid { flex-wrap: inherit }", which would otherwise switch wrapping off. */
+.ss-navbar .ss-nav-inner { flex-wrap: wrap; gap: .25rem 1rem; }
 .ss-nav-links { flex-wrap: wrap; flex: 1 1 auto; }
 .ss-navbar .nav-link { color: rgba(255,255,255,.8); padding: .5rem .6rem; }
 .ss-navbar .nav-link:hover, .ss-navbar .nav-link.active { color: #fff; }
@@ -35,6 +37,20 @@ body { background: var(--ss-bg); color: var(--ss-ink); }
 .kpi-teal    { border-left-color: var(--ss-teal); }
 .kpi-danger  { border-left-color: #dc3545; }
 .kpi-success { border-left-color: #198754; }
+
+/* ----- sortable tables, filters and paging ----- */
+.sort-link { color: inherit; text-decoration: none; white-space: nowrap; }
+.sort-link:hover, .sort-link.active { color: var(--ss-navy); text-decoration: underline; }
+.sort-icon { font-size: .7em; margin-left: .3em; color: #8a99a6; }
+.sort-link.active .sort-icon { color: var(--ss-navy); }
+.filter-bar { background: #fff; }
+.pagination .page-item.active .page-link { background: var(--ss-blue); border-color: var(--ss-blue); }
+.pagination .page-link { color: var(--ss-navy); }
+.ss-pw { width: 9rem; }
+.kpi-link { color: inherit; text-decoration: none; }
+.kpi-link:hover { text-decoration: underline; }
+.ss-account { color: rgba(255,255,255,.9); text-decoration: none; }   /* 0.9 white on navy: about 6:1 contrast */
+.ss-account:hover, .ss-account.active { color: #fff; text-decoration: underline; }
 
 /* ----- small helpers ----- */
 .supplier-strip { background: #e9f2fb; border-radius: .4rem; padding: .5rem .75rem; }
@@ -63,6 +79,13 @@ body { background: var(--ss-bg); color: var(--ss-ink); }
 .tile-quarter     { background: radial-gradient(circle at 0 100%, var(--b4) 0 70%, var(--b2) 71%); }
 .tile-dots        { background: radial-gradient(var(--b1) 0 22%, transparent 24%) 0 0 / 22px 22px, var(--b5); }
 .tile-notch       { background: conic-gradient(from -45deg at 50% 50%, var(--b1) 0 90deg, var(--b3) 90deg); }
+
+/* phones: brand and log out on the first row, the links wrap underneath at full width */
+@media (max-width: 767.98px) {
+  .ss-navbar .ss-nav-inner { justify-content: space-between; }
+  .ss-nav-links { order: 3; flex-basis: 100%; }
+  .ss-navbar .nav-link { padding: .35rem .5rem; }
+}
 
 /* phones: show the first 6 tiles only, so they don't get squashed */
 @media (max-width: 576px) {

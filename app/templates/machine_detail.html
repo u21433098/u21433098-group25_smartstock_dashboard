@@ -78,7 +78,10 @@
 
 <!-- recent changes -->
 <div class="card">
-  <div class="card-header"><h2 class="h6 mb-0">Recent changes</h2></div>
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h2 class="h6 mb-0">Recent changes</h2>
+    <a class="small" href="{{ url_for('inventory.activity', machine_id=machine.id) }}">All changes for {{ machine.code }}</a>
+  </div>
   <div class="table-responsive">
     {% if movements %}
     <table class="table table-sm mb-0">

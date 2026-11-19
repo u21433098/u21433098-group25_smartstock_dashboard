@@ -4,14 +4,15 @@
 {% block content %}
 
 <h1 class="h3 mb-0">SmartStock dashboard</h1>
-<p class="text-muted">Adlers Vending Operations | Restocker: {{ current_user.name }}</p>
+<p class="text-muted">Adlers Vending Operations | Logged in: {{ current_user.name }}
+  {% if window %}| Sales data: {{ window[0].strftime('%d %b') }} to {{ window[1].strftime('%d %b %Y') }} ({{ window[2] }} days){% endif %}</p>
 
 <!-- KPI cards -->
 <div class="row g-3 mb-4">
-  {{ kpi_card("Machines monitored", kpis.machines, "Stock updated by manual counts") }}
-  {{ kpi_card("Low-stock items", kpis.below_threshold, "at or below minimum in any tier", "danger" if kpis.below_threshold else "success") }}
-  {{ kpi_card("Central storage value", kpis.central_value|rand, "at cost price", "teal") }}
-  {{ kpi_card("Trips saved on this order", kpis.trips_saved, shopping.n_products ~ " products from " ~ shopping.n_suppliers ~ " suppliers", "primary") }}
+  {{ kpi_card("Machines monitored", kpis.machines, "Stock updated by manual counts", href=url_for('inventory.machines')) }}
+  {{ kpi_card("Low-stock items", kpis.below_threshold, "at or below minimum in any tier", "danger" if kpis.below_threshold else "success", href=url_for('dashboard.all_alerts')) }}
+  {{ kpi_card("Central storage value", kpis.central_value|rand, "at cost price", "teal", href=url_for('inventory.central')) }}
+  {{ kpi_card("Trips saved on this order", kpis.trips_saved, shopping.n_products ~ " products from " ~ shopping.n_suppliers ~ " suppliers", "primary", href=url_for('procurement.shopping_list')) }}
 </div>
 
 <div class="row g-3 mb-3">
