@@ -1,10 +1,15 @@
-"""Login, register and logout pages."""
+"""Login, logout and "change my password" pages.
+
+There is no public registration page: SmartStock is only used by Mr Msiza and the
+people helping him, so an admin adds each account (see app/blueprints/admin.py).
+"""
 import logging
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app.services import user_service
+from app.services.errors import ServiceError
 
 bp = Blueprint("auth", __name__)
 log = logging.getLogger(__name__)
@@ -34,27 +39,24 @@ def login():
     return render_template("login.html", email=email)
 
 
-# ---- register page ----
-@bp.route("/register", methods=["GET", "POST"])
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard.index"))
-    form = {"name": "", "email": ""}
+# ---- change my own password (any logged-in user) ----
+@bp.route("/account/password", methods=["GET", "POST"])
+@login_required
+def change_password():
     if request.method == "POST":
-        form["name"] = request.form.get("name", "")
-        form["email"] = request.form.get("email", "")
-        password = request.form.get("password", "")
-        if password != request.form.get("confirm", ""):
-            flash("The two passwords do not match.", "danger")
-        else:
-            try:
-                user_service.create_user(form["name"], form["email"], password)
-            except ValueError as error:
-                flash(str(error), "danger")
-            else:
-                flash("Account created. Please log in.", "success")
-                return redirect(url_for("auth.login"))
-    return render_template("register.html", form=form)
+        new = request.form.get("new_password", "")
+        if new != request.form.get("confirm", ""):
+            flash("The two new passwords do not match.", "danger")
+            return render_template("account_password.html"), 400
+        try:
+            user_service.change_own_password(current_user, request.form.get("current_password", ""), new)
+        except ServiceError as error:
+            flash(error.message, "danger")
+            return render_template("account_password.html"), error.status
+        log.info("Password changed: %s", current_user.email)
+        flash("Your password has been changed.", "success")
+        return redirect(url_for("dashboard.index"))
+    return render_template("account_password.html")
 
 
 # ---- logout (POST only, so a stray link cannot log you out) ----

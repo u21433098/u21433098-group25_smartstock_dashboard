@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_input, pagination, empty_state %}
+{% block title %}Users{% endblock %}
+{% block content %}
+
+<h1 class="h3">User accounts</h1>
+<p class="text-muted">Only admins see this page. Add an account for Mr Msiza or anyone helping him restock,
+  switch accounts off when someone stops helping (their history stays in the activity log), and reset forgotten passwords.</p>
+
+<div class="row g-3">
+  <!-- list of accounts with the actions for each -->
+  <div class="col-12 col-xl-8">
+    <div class="card">
+      <div class="card-header"><h2 class="h6 mb-0">Accounts</h2></div>
+      <div class="table-responsive">
+        {% if result['items'] %}
+        <table class="table align-middle mb-0">
+          <caption class="visually-hidden">User accounts and their actions.</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+          <tbody>
+          {% for u in result['items'] %}
+            {% set me = u.id|string == current_user.id %}
+            <tr>
+              <td><strong>{{ u.name }}</strong>{% if me %} <span class="badge bg-info text-dark">you</span>{% endif %}
+                <div class="small text-muted">{{ u.email }}</div></td>
+              <td>{{ 'Admin' if u.role == 'admin' else 'User' }}</td>
+              <td>{% if u.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Switched off</span>{% endif %}</td>
+              <td>
+                {% if me %}
+                  <span class="small text-muted">Change your own password under <a href="{{ url_for('auth.change_password') }}">Account</a>.</span>
+                {% else %}
+                <div class="d-flex flex-wrap gap-2">
+                  <form method="post" action="{{ url_for('admin.set_role', user_id=u.id, page=request.args.get('page')) }}" class="d-flex gap-1">
+                    {{ csrf_input() }}
+                    <label class="visually-hidden" for="role-{{ u.id }}">Role for {{ u.name }}</label>
+                    <select class="form-select form-select-sm" id="role-{{ u.id }}" name="role">
+                      <option value="user" {{ 'selected' if u.role == 'user' }}>User</option>
+                      <option value="admin" {{ 'selected' if u.role == 'admin' }}>Admin</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Set role<span class="visually-hidden"> for {{ u.name }}</span></button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.set_active', user_id=u.id, page=request.args.get('page')) }}">
+                    {{ csrf_input() }}
+                    <input type="hidden" name="active" value="{{ '0' if u.is_active else '1' }}">
+                    <button type="submit" class="btn btn-sm text-nowrap {{ 'btn-outline-danger' if u.is_active else 'btn-outline-success' }}">
+                      {{ 'Switch off' if u.is_active else 'Switch on' }}<span class="visually-hidden"> {{ u.name }}</span></button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.reset_password', user_id=u.id, page=request.args.get('page')) }}" class="d-flex gap-1">
+                    {{ csrf_input() }}
+                    <label class="visually-hidden" for="pw-{{ u.id }}">New password for {{ u.name }}</label>
+                    <input type="password" class="form-control form-control-sm ss-pw" id="pw-{{ u.id }}" name="new_password"
+                           minlength="8" required autocomplete="new-password" placeholder="New password">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">Reset<span class="visually-hidden"> password for {{ u.name }}</span></button>
+                  </form>
+                </div>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}{{ empty_state("No accounts yet.") }}{% endif %}
+      </div>
+      {{ pagination(result, "Accounts") }}
+    </div>
+  </div>
+
+  <!-- add an account -->
+  <div class="col-12 col-xl-4">
+    <div class="card"><div class="card-body">
+      <h2 class="h6">Add an account</h2>
+      <form method="post" action="{{ url_for('admin.add_user') }}">
+        {{ csrf_input() }}
+        <div class="mb-2">
+          <label for="name" class="form-label">Full name</label>
+          <input type="text" class="form-control" id="name" name="name" value="{{ form.get('name', '') }}" required maxlength="100" autocomplete="off">
+        </div>
+        <div class="mb-2">
+          <label for="email" class="form-label">Email</label>
+          <input type="email" class="form-control" id="email" name="email" value="{{ form.get('email', '') }}" required autocomplete="off">
+        </div>
+        <div class="mb-2">
+          <label for="role" class="form-label">Role</label>
+          <select class="form-select" id="role" name="role" aria-describedby="roleHelp">
+            <option value="user" {{ 'selected' if form.get('role', 'user') == 'user' }}>User (restocks and counts)</option>
+            <option value="admin" {{ 'selected' if form.get('role') == 'admin' }}>Admin (also manages accounts)</option>
+          </select>
+          <div id="roleHelp" class="form-text">Mr Msiza and his helpers are users.</div>
+        </div>
+        <div class="mb-2">
+          <label for="password" class="form-label">Password</label>
+          <input type="password" class="form-control" id="password" name="password" minlength="8" required autocomplete="new-password" aria-describedby="pwHelp">
+          <div id="pwHelp" class="form-text">At least 8 characters. They can change it later under Account.</div>
+        </div>
+        <div class="mb-3">
+          <label for="confirm" class="form-label">Confirm password</label>
+          <input type="password" class="form-control" id="confirm" name="confirm" minlength="8" required autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-ss w-100">Add account</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
