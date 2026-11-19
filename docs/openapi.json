@@ -1,0 +1,2270 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SmartStock API",
+    "version": "1.0.0",
+    "description": "JSON API for SmartStock, the three-tier vending stock dashboard for Adlers (BFB 321, Group 25).\n\n**Logging in.** The API uses the same session as the web pages. 1) `GET /auth/csrf` to get a token and a session cookie. 2) `POST /auth/login` with the token in the `X-CSRF-Token` header. Keep the cookie for later requests.\n\n**Changes** (POST, PUT, PATCH) always need the `X-CSRF-Token` header. Reads (GET) do not.\n\n**Roles.** `user` (Mr Msiza and his helpers) can view everything and change stock. `admin` can also manage accounts.\n\n**Lists** are paged (`page`, `per_page` up to 100), sorted with `sort=key` or `sort=-key`, and filtered with the parameters listed per endpoint.\n\n**Errors** always look like `{\"error\": {\"status\": 400, \"message\": \"...\", \"field\": \"qty\"}}`.\n\nAll data in the demo database is synthetic."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "This SmartStock server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Dashboard"
+    },
+    {
+      "name": "Machines"
+    },
+    {
+      "name": "Central storage"
+    },
+    {
+      "name": "Alerts"
+    },
+    {
+      "name": "Audit trail"
+    },
+    {
+      "name": "Planning"
+    },
+    {
+      "name": "Users (admin)"
+    },
+    {
+      "name": "Contract"
+    }
+  ],
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
+  "paths": {
+    "/auth/csrf": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "getCsrfToken",
+        "summary": "Get a CSRF token",
+        "description": "Call this first. It starts a session (cookie) and returns the token to send in the X-CSRF-Token header.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsrfToken"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "login",
+        "summary": "Log in",
+        "description": "Logs in with email and password. The session cookie identifies you afterwards.",
+        "security": [
+          {
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "logout",
+        "summary": "Log out",
+        "description": "Ends the session.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done (no content)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "getMe",
+        "summary": "Who am I",
+        "description": "The logged-in user, their permissions and the CSRF token.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/me/password": {
+      "put": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "changeMyPassword",
+        "summary": "Change my password",
+        "description": "Any logged-in user.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done (no content)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "operationId": "getDashboard",
+        "summary": "Dashboard summary",
+        "description": "KPIs, the 5 most urgent alerts, the order summary, best sellers and the sales window.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/machines": {
+      "get": {
+        "tags": [
+          "Machines"
+        ],
+        "operationId": "listMachines",
+        "summary": "List machines",
+        "description": "Paged list of machines with their open alert count.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of machines.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/MachineListItem"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Text in the machine code or location (not case-sensitive).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort key; a leading minus sorts high to low.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "-alerts",
+                "-code",
+                "-location",
+                "alerts",
+                "code",
+                "location"
+              ],
+              "default": "code"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/per_page"
+          }
+        ]
+      }
+    },
+    "/machines/{machine_id}": {
+      "get": {
+        "tags": [
+          "Machines"
+        ],
+        "operationId": "getMachine",
+        "summary": "One machine with all three stock tiers",
+        "description": "Objective O2: machine, drawer and central stock side by side for every product the machine carries.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineId"
+          }
+        ]
+      }
+    },
+    "/machines/{machine_id}/stock/{product_id}": {
+      "put": {
+        "tags": [
+          "Machines"
+        ],
+        "operationId": "setMachineCount",
+        "summary": "Record a machine count",
+        "description": "A physical count of one product inside the machine (the manual fallback for the sensor feed). Audited.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product's new three-tier levels.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineStockRow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineId"
+          },
+          {
+            "$ref": "#/components/parameters/ProductId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockCount"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/machines/{machine_id}/restocks": {
+      "post": {
+        "tags": [
+          "Machines"
+        ],
+        "operationId": "logRestock",
+        "summary": "Log a restock visit",
+        "description": "The units fill the machine first, then top up the drawer to the allocation recommendation; the rest goes back to central storage. Every change is audited.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestockResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestockRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/machines/{machine_id}/allocation": {
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "operationId": "getAllocation",
+        "summary": "Drawer allocation for a machine",
+        "description": "Objective O3: products ranked by 30-day turnover and the recommended drawer buffer for each.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Allocation"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineId"
+          }
+        ]
+      }
+    },
+    "/central": {
+      "get": {
+        "tags": [
+          "Central storage"
+        ],
+        "operationId": "listCentral",
+        "summary": "List central storage",
+        "description": "Paged list of the shared stock pool at the Adlers facility.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of central storage rows.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CentralRow"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Text in the product name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": false,
+            "description": "Only this supplier's products.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "low_only",
+            "in": "query",
+            "required": false,
+            "description": "true: only products at or below their threshold.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "true",
+                "yes",
+                "0",
+                "false",
+                "no"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort key; a leading minus sorts high to low.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "-name",
+                "-qty",
+                "-supplier",
+                "-value",
+                "name",
+                "qty",
+                "supplier",
+                "value"
+              ],
+              "default": "name"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/per_page"
+          }
+        ]
+      }
+    },
+    "/central/{product_id}": {
+      "put": {
+        "tags": [
+          "Central storage"
+        ],
+        "operationId": "setCentralCount",
+        "summary": "Record a central stock take",
+        "description": "Sets the counted quantity of one product in central storage. Audited.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product's new central storage row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CentralRow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockCount"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "operationId": "listAlerts",
+        "summary": "List low-stock alerts",
+        "description": "Every stock row in any tier at or below its threshold; out of stock first.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of alerts.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Alert"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tier",
+            "in": "query",
+            "required": false,
+            "description": "Only this tier.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Machine",
+                "Drawer",
+                "Central"
+              ]
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "description": "out: only qty 0; low: only qty above 0.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "out",
+                "low"
+              ]
+            }
+          },
+          {
+            "name": "machine_id",
+            "in": "query",
+            "required": false,
+            "description": "Only this machine.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/per_page"
+          }
+        ]
+      }
+    },
+    "/movements": {
+      "get": {
+        "tags": [
+          "Audit trail"
+        ],
+        "operationId": "listMovements",
+        "summary": "List stock changes (audit trail)",
+        "description": "Every change to any tier, newest first, with who made it. Paged in the database.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of stock changes.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Movement"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "machine_id",
+            "in": "query",
+            "required": false,
+            "description": "Only this machine.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "product_id",
+            "in": "query",
+            "required": false,
+            "description": "Only this product.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "tier",
+            "in": "query",
+            "required": false,
+            "description": "Only this tier.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Machine",
+                "Drawer",
+                "Central"
+              ]
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "description": "From this day (YYYY-MM-DD).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "description": "Up to and including this day (YYYY-MM-DD).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/per_page"
+          }
+        ]
+      }
+    },
+    "/shopping-list": {
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "operationId": "getShoppingList",
+        "summary": "Consolidated shopping list",
+        "description": "Objective O4: one order per supplier, built from the stock in all three tiers and 30-day demand.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShoppingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "Users (admin)"
+        ],
+        "operationId": "listUsers",
+        "summary": "List accounts",
+        "description": "Admin only.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of accounts.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/User"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/per_page"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Users (admin)"
+        ],
+        "operationId": "createUser",
+        "summary": "Add an account",
+        "description": "Admin only. There is no public registration.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewUser"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_id}": {
+      "patch": {
+        "tags": [
+          "Users (admin)"
+        ],
+        "operationId": "updateUser",
+        "summary": "Change role or switch an account on/off",
+        "description": "Admin only. An admin cannot change their own role or switch themselves off, and one active admin always remains.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_id}/password": {
+      "put": {
+        "tags": [
+          "Users (admin)"
+        ],
+        "operationId": "resetPassword",
+        "summary": "Set a new password for an account",
+        "description": "Admin only, for someone who forgot theirs.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done (no content)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Contract"
+        ],
+        "operationId": "getOpenApi",
+        "summary": "This contract",
+        "description": "The OpenAPI document you are reading.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3 document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "session",
+        "description": "Set by GET /auth/csrf and POST /auth/login."
+      },
+      "csrfHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "Token from GET /auth/csrf, /auth/login or /auth/me."
+      }
+    },
+    "parameters": {
+      "page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "Page number.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "per_page": {
+        "name": "per_page",
+        "in": "query",
+        "required": false,
+        "description": "Items per page.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "MachineId": {
+        "name": "machine_id",
+        "in": "path",
+        "required": true,
+        "description": "Machine id.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "ProductId": {
+        "name": "product_id",
+        "in": "path",
+        "required": true,
+        "description": "Product id.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "UserId": {
+        "name": "user_id",
+        "in": "path",
+        "required": true,
+        "description": "User id.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid input. `field` names the bad parameter or body field. Also returned when the CSRF token is missing or wrong.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Not logged in (or wrong email/password on login).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Logged in, but the role does not allow this (e.g. a user calling an admin endpoint).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The machine, product or user does not exist, or the machine does not carry that product.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The change clashes with existing data (duplicate email, changing your own role, removing the last admin).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "type": "integer",
+                "description": "HTTP status code, repeated in the body."
+              },
+              "message": {
+                "type": "string",
+                "description": "What went wrong, written for a person."
+              },
+              "field": {
+                "type": "string",
+                "description": "The request field or query parameter that was wrong (only for input errors)."
+              }
+            },
+            "required": [
+              "status",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Every error response has this shape."
+      },
+      "Page": {
+        "type": "object",
+        "description": "One page of a list. The `items` type depends on the endpoint.",
+        "required": [
+          "items",
+          "page",
+          "per_page",
+          "total",
+          "pages",
+          "has_prev",
+          "has_next"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {}
+          },
+          "page": {
+            "type": "integer",
+            "description": "This page number (from 1)."
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Items per page (1 to 100, default 20)."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Items across all pages, after filtering."
+          },
+          "pages": {
+            "type": "integer",
+            "description": "Number of pages (at least 1)."
+          },
+          "has_prev": {
+            "type": "boolean"
+          },
+          "has_next": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StockLevel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "qty": {
+            "type": "integer",
+            "description": "Units now."
+          },
+          "capacity": {
+            "type": "integer",
+            "description": "Most units the slot holds; null for central storage.",
+            "nullable": true
+          },
+          "threshold": {
+            "type": "integer",
+            "description": "Alert when qty is at or below this."
+          }
+        },
+        "required": [
+          "qty",
+          "capacity",
+          "threshold"
+        ]
+      },
+      "CsrfToken": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "csrf_token": {
+            "type": "string",
+            "description": "Send this in the X-CSRF-Token header on every POST, PUT and PATCH."
+          }
+        },
+        "required": [
+          "csrf_token"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "user"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "change_stock",
+                "manage_users",
+                "view"
+              ]
+            },
+            "description": "What this role may do."
+          },
+          "csrf_token": {
+            "type": "string",
+            "description": "CSRF token for this session."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "permissions",
+          "csrf_token"
+        ]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "msiza@adlers.test"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "example": "SmartStock123"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "PasswordChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "format": "password"
+          },
+          "new_password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ]
+      },
+      "MachineListItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "example": "UP-03"
+          },
+          "location": {
+            "type": "string",
+            "example": "Law Building"
+          },
+          "drawer_capacity": {
+            "type": "integer",
+            "description": "Total units the drawer holds."
+          },
+          "alerts": {
+            "type": "integer",
+            "description": "Open low-stock alerts for this machine (machine and drawer tiers)."
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "location",
+          "drawer_capacity",
+          "alerts"
+        ]
+      },
+      "MachineStockRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "machine": {
+            "$ref": "#/components/schemas/StockLevel"
+          },
+          "drawer": {
+            "$ref": "#/components/schemas/StockLevel"
+          },
+          "central": {
+            "$ref": "#/components/schemas/StockLevel"
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "machine",
+          "drawer",
+          "central"
+        ],
+        "description": "One product in one machine, with all three stock tiers side by side."
+      },
+      "MachineDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "drawer_capacity": {
+            "type": "integer"
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MachineStockRow"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "location",
+          "drawer_capacity",
+          "products"
+        ]
+      },
+      "StockCount": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "qty": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 12,
+            "description": "The number of units counted."
+          }
+        },
+        "required": [
+          "qty"
+        ]
+      },
+      "RestockRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          },
+          "units": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "example": 30,
+            "description": "Units brought on the visit."
+          }
+        },
+        "required": [
+          "product_id",
+          "units"
+        ]
+      },
+      "RestockResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "split": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "to_machine": {
+                "type": "integer"
+              },
+              "to_drawer": {
+                "type": "integer"
+              },
+              "to_central": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "to_machine",
+              "to_drawer",
+              "to_central"
+            ],
+            "description": "Where the units went: machine first, then the drawer, the rest back to central storage."
+          },
+          "stock": {
+            "$ref": "#/components/schemas/MachineStockRow"
+          }
+        },
+        "required": [
+          "split",
+          "stock"
+        ]
+      },
+      "AllocationRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": {
+            "type": "integer"
+          },
+          "rank": {
+            "type": "integer",
+            "description": "1 = best seller in this machine."
+          },
+          "name": {
+            "type": "string"
+          },
+          "turnover": {
+            "type": "integer",
+            "description": "Units sold in the 30-day window."
+          },
+          "priority": {
+            "type": "string"
+          },
+          "recommended": {
+            "type": "integer",
+            "description": "Recommended drawer units."
+          },
+          "current": {
+            "type": "integer",
+            "description": "Units in the drawer now."
+          },
+          "action": {
+            "type": "string",
+            "example": "Top up by 3"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "primary",
+              "secondary",
+              "success"
+            ]
+          }
+        },
+        "required": [
+          "product_id",
+          "rank",
+          "name",
+          "turnover",
+          "priority",
+          "recommended",
+          "current",
+          "action",
+          "tone"
+        ]
+      },
+      "Allocation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "machine_id": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllocationRow"
+            }
+          },
+          "capacity": {
+            "type": "integer",
+            "description": "Drawer capacity in units."
+          },
+          "allocated": {
+            "type": "integer",
+            "description": "Units the plan uses."
+          },
+          "buffer_days": {
+            "type": "integer",
+            "description": "Days of sales the drawer should cover."
+          }
+        },
+        "required": [
+          "machine_id",
+          "rows",
+          "capacity",
+          "allocated",
+          "buffer_days"
+        ]
+      },
+      "CentralRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "supplier_id": {
+            "type": "integer"
+          },
+          "supplier": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
+            "description": "Rand per unit."
+          },
+          "qty": {
+            "type": "integer"
+          },
+          "threshold": {
+            "type": "integer"
+          },
+          "value": {
+            "type": "number",
+            "description": "qty x unit_cost, in rand."
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "supplier_id",
+          "supplier",
+          "unit_cost",
+          "qty",
+          "threshold",
+          "value"
+        ]
+      },
+      "Alert": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tier": {
+            "type": "string",
+            "enum": [
+              "Machine",
+              "Drawer",
+              "Central"
+            ]
+          },
+          "location": {
+            "type": "string",
+            "description": "Machine code, or 'Central storage'."
+          },
+          "machine_id": {
+            "type": "integer",
+            "description": "Null for central storage.",
+            "nullable": true
+          },
+          "product_id": {
+            "type": "integer"
+          },
+          "product": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "integer"
+          },
+          "threshold": {
+            "type": "integer"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "Out of stock",
+              "Low"
+            ]
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "danger",
+              "warning"
+            ]
+          }
+        },
+        "required": [
+          "tier",
+          "location",
+          "machine_id",
+          "product_id",
+          "product",
+          "qty",
+          "threshold",
+          "severity",
+          "tone"
+        ]
+      },
+      "Movement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "time": {
+            "type": "string",
+            "example": "2026-11-19 08:49",
+            "description": "Local time, YYYY-MM-DD HH:MM."
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-11-19T08:49:03",
+            "description": "ISO 8601 date and time."
+          },
+          "machine_id": {
+            "type": "integer",
+            "description": "Null for central-storage stock takes.",
+            "nullable": true
+          },
+          "machine": {
+            "type": "string"
+          },
+          "product_id": {
+            "type": "integer"
+          },
+          "product": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "Machine",
+              "Drawer",
+              "Central"
+            ]
+          },
+          "old": {
+            "type": "integer"
+          },
+          "new": {
+            "type": "integer"
+          },
+          "change": {
+            "type": "integer",
+            "description": "new - old"
+          },
+          "user": {
+            "type": "string",
+            "description": "Who made the change."
+          },
+          "note": {
+            "type": "string",
+            "example": "Restock visit"
+          }
+        },
+        "required": [
+          "id",
+          "time",
+          "created_at",
+          "machine_id",
+          "machine",
+          "product_id",
+          "product",
+          "tier",
+          "old",
+          "new",
+          "change",
+          "user",
+          "note"
+        ],
+        "description": "One entry in the audit trail."
+      },
+      "ShoppingLine": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": {
+            "type": "integer"
+          },
+          "product": {
+            "type": "string"
+          },
+          "on_hand": {
+            "type": "integer",
+            "description": "Units in all three tiers."
+          },
+          "reorder_point": {
+            "type": "integer"
+          },
+          "target": {
+            "type": "integer",
+            "description": "Order-up-to level."
+          },
+          "qty": {
+            "type": "integer",
+            "description": "Units to order (whole cases)."
+          },
+          "cases": {
+            "type": "integer"
+          },
+          "cost": {
+            "type": "number"
+          },
+          "urgent": {
+            "type": "boolean",
+            "description": "On hand is at or below the reorder point."
+          }
+        },
+        "required": [
+          "product_id",
+          "product",
+          "on_hand",
+          "reorder_point",
+          "target",
+          "qty",
+          "cases",
+          "cost",
+          "urgent"
+        ]
+      },
+      "SupplierOrder": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "supplier": {
+            "type": "string"
+          },
+          "lead_time": {
+            "type": "integer",
+            "description": "Days."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShoppingLine"
+            }
+          },
+          "total_cost": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "supplier",
+          "lead_time",
+          "lines",
+          "total_cost"
+        ]
+      },
+      "ShoppingList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupplierOrder"
+            },
+            "description": "One order (one trip) per supplier."
+          },
+          "n_products": {
+            "type": "integer"
+          },
+          "n_suppliers": {
+            "type": "integer"
+          },
+          "trips_saved": {
+            "type": "integer",
+            "description": "Trips saved by ordering per supplier instead of per product."
+          },
+          "total_cost": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "groups",
+          "n_products",
+          "n_suppliers",
+          "trips_saved",
+          "total_cost"
+        ]
+      },
+      "Kpis": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "machines": {
+            "type": "integer"
+          },
+          "below_threshold": {
+            "type": "integer",
+            "description": "Open alerts in all tiers."
+          },
+          "central_value": {
+            "type": "number",
+            "description": "Rand, at cost."
+          },
+          "trips_saved": {
+            "type": "integer"
+          },
+          "baseline_trips": {
+            "type": "integer",
+            "description": "Unplanned supplier trips a week before SmartStock (proposal)."
+          },
+          "minutes_per_trip": {
+            "type": "integer"
+          },
+          "baseline_hours": {
+            "type": "number",
+            "description": "Driving hours a month at baseline."
+          },
+          "target_hours_saved": {
+            "type": "number",
+            "description": "Hours a month saved at the O4 target."
+          },
+          "reduction_pct": {
+            "type": "integer",
+            "description": "O4 target, percent."
+          }
+        },
+        "required": [
+          "machines",
+          "below_threshold",
+          "central_value",
+          "trips_saved",
+          "baseline_trips",
+          "minutes_per_trip",
+          "baseline_hours",
+          "target_hours_saved",
+          "reduction_pct"
+        ]
+      },
+      "BestSeller": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "product_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "turnover": {
+            "type": "integer"
+          },
+          "per_day": {
+            "type": "number"
+          },
+          "priority": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "product_id",
+          "name",
+          "turnover",
+          "per_day",
+          "priority"
+        ]
+      },
+      "DashboardSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kpis": {
+            "$ref": "#/components/schemas/Kpis"
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "description": "The 5 most urgent alerts."
+          },
+          "total_alerts": {
+            "type": "integer"
+          },
+          "order": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "n_products": {
+                "type": "integer"
+              },
+              "n_suppliers": {
+                "type": "integer"
+              },
+              "trips_saved": {
+                "type": "integer"
+              },
+              "total_cost": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "n_products",
+              "n_suppliers",
+              "trips_saved",
+              "total_cost"
+            ]
+          },
+          "best_sellers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BestSeller"
+            }
+          },
+          "sales_window": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "first_day": {
+                "type": "string",
+                "format": "date"
+              },
+              "last_day": {
+                "type": "string",
+                "format": "date"
+              },
+              "days": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "first_day",
+              "last_day",
+              "days"
+            ],
+            "description": "The 30-day window the numbers use; null with no sales.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "kpis",
+          "alerts",
+          "total_alerts",
+          "order",
+          "best_sellers",
+          "sales_window"
+        ]
+      },
+      "User": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "user"
+            ]
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Switched-off accounts cannot log in."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 date and time."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "is_active",
+          "created_at"
+        ]
+      },
+      "NewUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Thabo Helper"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "thabo@adlers.test"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "default": "user"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "password"
+        ]
+      },
+      "UserUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "user"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        },
+        "description": "Send role, is_active, or both.",
+        "minProperties": 1
+      },
+      "PasswordReset": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "new_password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "new_password"
+        ]
+      }
+    }
+  }
+}
