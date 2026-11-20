@@ -60,6 +60,9 @@ CREATE USER 'smartstock'@'localhost' IDENTIFIED BY 'choose-a-password';
 GRANT ALL ON smartstock.* TO 'smartstock'@'localhost';
 ```
 
+Pick any password (letters and numbers only, because it goes into a web address); you will type the same one
+into `.env` in step 2. Each person who runs SmartStock creates their own; no real password is stored in this repository.
+
 **2. Install and configure the app**
 
 ```
@@ -130,6 +133,8 @@ grant the `smartstock` user access, and set `TEST_DATABASE_URL` in `.env` (see `
 - `tests/test_admin.py`: the admin pages and "change my password".
 - `tests/test_e2e.py`: the five end-to-end flows in `docs/e2e_flows.md`.
 - `tests/conftest.py`: shared fixtures (a fresh demo database per test, logged-in web and API clients).
+- `tests/test_ops.py`: log files and their 14-day rotation, the `flask health` check, production settings, `wsgi.py`,
+  and backups (old-backup clean-up, the temporary password file, and a real backup-and-restore round trip on MySQL).
 
 ## Project structure
 
@@ -154,9 +159,14 @@ migrations/           Flask-Migrate (Alembic) migration scripts; 0001 builds eve
 docs/                 erd.md + erd.png (data model), schema.sql (generated SQL),
                       api.md + openapi.json (API), e2e_flows.md + screenshots/, impact_report.md + impact/
 scripts/              capture_screenshots.py, benchmark.py, impact_report.py (documentation tools)
-tests/                pytest unit, database, API, contract, page and end-to-end tests
+tests/                pytest unit, database, services, operations, API, contract, page and end-to-end tests
+deploy/               production files: start_production.cmd and backup.cmd (Windows),
+                      systemd, Gunicorn, Nginx and log-rotation files (Linux server)
+app/backup.py         `flask backup` and `flask restore` (Windows and Linux)
 config.py             DEV / TEST / PROD settings
-run.py                entry point
+run.py                development entry point (python run.py)
+wsgi.py               production entry point for Waitress or Gunicorn
+app/logging_setup.py  console + daily log files, kept 14 days
 ```
 
 ## Supply chain model
@@ -309,11 +319,163 @@ Every table has `created_at` / `updated_at` audit columns.
 
 Full detail (constraint and index tables, normalisation notes): [`docs/erd.md`](docs/erd.md). Generated SQL: [`docs/schema.sql`](docs/schema.sql).
 
+## Deployment and operations
+
+Three ways to run SmartStock:
+
+| Where | Server | Use it for |
+|---|---|---|
+| Your PC, `python run.py` | Flask's built-in server | Development only (shows debug pages, one request at a time) |
+| One Windows PC at Adlers | Waitress (`deploy\start_production.cmd`) | Realistic for Adlers: one office PC, reached by others on the café network |
+| A Linux server | Gunicorn behind Nginx with HTTPS (`deploy/`) | A proper hosted deployment, reachable from a phone anywhere |
+
+### Production settings (`.env`)
+
+Production (`wsgi.py`) always uses the `ProductionConfig` in `config.py`. It **refuses to start** without
+`SECRET_KEY` and `DATABASE_URL`, never shows debug pages, and marks the login cookie HttpOnly and SameSite=Lax.
+On the Linux set-up with HTTPS, also set `BEHIND_HTTPS_PROXY=1`, so the cookie is only sent over HTTPS
+and the real visitor address from Nginx is trusted.
+
+Make a strong key once with: `python -c "import secrets; print(secrets.token_hex(32))"`
+
+### Option A: Windows PC with Waitress
+
+Do the Quick start first (database, `.env`, `flask db upgrade`). Then:
+
+```
+flask create-admin                      # real admin account (or flask seed --yes for the demo data)
+flask health                            # every line must say [OK]
+deploy\start_production.cmd            # or double-click it in File Explorer
+```
+
+Open http://127.0.0.1:8000 on that PC, or http://PC-IP-ADDRESS:8000 from another computer on the network
+(find the address with `ipconfig`; allow Python through the firewall on *Private networks* when Windows asks).
+
+**Start automatically and back up every night** (run once, in PowerShell opened *as Administrator*,
+replacing the path with your project folder; the path must not contain spaces):
+
+```
+$P = "C:\dev\u21433098-group25_smartstock_dashboard"
+schtasks /Create /TN "SmartStock" /SC ONSTART /RU SYSTEM /TR "$P\deploy\start_production.cmd"
+schtasks /Create /TN "SmartStock backup" /SC DAILY /ST 02:00 /RU SYSTEM /TR "$P\deploy\backup.cmd"
+```
+
+Both are plain `.cmd` files on purpose. Starting PowerShell with `-ExecutionPolicy Bypass` is flagged as harmful
+by antivirus software (malware uses that pattern), and Windows blocks PowerShell scripts for scheduled tasks by default.
+
+Check them in *Task Scheduler*; remove with `schtasks /Delete /TN "SmartStock"` (and `"SmartStock backup"`).
+
+### Option B: Linux server with Gunicorn and Nginx
+
+On Ubuntu, as a user with `sudo`, assuming the project lives in `/opt/smartstock` and runs as user `smartstock`:
+
+```
+sudo apt install python3-venv mysql-server nginx certbot python3-certbot-nginx
+sudo useradd --system --create-home smartstock
+sudo git clone https://github.com/u21433098/u21433098-group25_smartstock_dashboard.git /opt/smartstock
+sudo chown -R smartstock:smartstock /opt/smartstock
+cd /opt/smartstock
+sudo -u smartstock python3 -m venv venv
+sudo -u smartstock venv/bin/pip install -r requirements.txt
+sudo -u smartstock cp .env.example .env     # then edit: SECRET_KEY, DATABASE_URL, BEHIND_HTTPS_PROXY=1
+# create the database and user exactly as in Quick start step 1 (sudo mysql)
+sudo -u smartstock venv/bin/flask db upgrade
+sudo -u smartstock venv/bin/flask create-admin
+sudo -u smartstock venv/bin/flask health
+```
+
+Then install the services (each file in `deploy/` starts with the same commands as comments):
+
+```
+sudo cp deploy/smartstock.service deploy/smartstock-backup.service deploy/smartstock-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now smartstock smartstock-backup.timer
+sudo cp deploy/nginx-smartstock.conf /etc/nginx/sites-available/smartstock     # edit server_name first
+sudo ln -s /etc/nginx/sites-available/smartstock /etc/nginx/sites-enabled/
+sudo certbot --nginx -d your.domain.example                                    # free HTTPS certificate
+sudo cp deploy/logrotate-nginx-smartstock /etc/logrotate.d/smartstock
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+systemd restarts SmartStock if it crashes and starts it after a reboot. See its output with `journalctl -u smartstock -f`.
+
+### Updating to a new version, and the rollback plan
+
+Every update follows the same five steps, so it can always be undone:
+
+| Step | Windows | Linux |
+|---|---|---|
+| 1. Back up the data | `flask backup` | `venv/bin/flask backup` |
+| 2. Note the current version | `git log --oneline -1` | same |
+| 3. Get the new code | stop the app (Ctrl+C), then `git pull` and `pip install -r requirements.txt` | `git pull`, then `venv/bin/pip install -r requirements.txt` |
+| 4. Update the tables | `flask db upgrade` | `venv/bin/flask db upgrade` |
+| 5. Check and start | `flask health`, then start the app | `venv/bin/flask health`, then `sudo systemctl restart smartstock` |
+
+**If something is wrong after an update (rollback):**
+
+1. Stop the app.
+2. Undo the table changes: `flask db downgrade -1` (one migration back; repeat if the update added several).
+3. Go back to the old code: `git checkout <version noted in step 2>` and `pip install -r requirements.txt`.
+4. If data was damaged, restore the backup from step 1 (below).
+5. `flask health`, then start the app. Return to the newest code later with `git checkout main`.
+
+**Changing the tables** (for developers): edit `app/models/`, run `flask db migrate -m "what changed"`,
+read the new file in `migrations/versions/` (check its `downgrade()` too), test with `flask db upgrade` and
+`flask db downgrade -1` on your own database, run `pytest`, then commit the migration with the model change.
+
+### Backups and restore
+
+| | Windows | Linux |
+|---|---|---|
+| Back up now | `flask backup` | `venv/bin/flask backup` |
+| Saved to | `backups\smartstock_YYYY-MM-DD_HHMMSS.sql.gz` | `backups/smartstock_YYYY-MM-DD_HHMMSS.sql.gz` |
+| Automatic | Task Scheduler runs `deploy\backup.cmd` daily at 02:00 (Option A); results in `logs\backup.log` | `smartstock-backup.timer`, daily 02:00 |
+| Restore | `flask restore backups\FILE.sql.gz` | `venv/bin/flask restore backups/FILE.sql.gz` |
+
+- One Python implementation (`app/backup.py`) for both systems, tested by `tests/test_ops.py` with a real
+  backup-and-restore round trip whenever the tests run on MySQL.
+- Backups read the database login from `.env`. The password reaches MySQL's tools through a temporary file that is
+  deleted straight away, so it never appears on screen, on the command line, or in a script.
+- Backups are compressed (gzip). Backups older than **30 days** are deleted automatically (`--keep-days` changes that).
+  The `backups/` folder is in `.gitignore`.
+- Restore asks for confirmation, then **replaces all data** with the backup. Stop the app first.
+- `mysqldump` and `mysql` are found automatically (in the PATH, or in `C:\Program Files\MySQL\`, MariaDB or XAMPP);
+  if not, set `MYSQL_BIN` in `.env` to the folder that contains them.
+- Keep a copy of the `backups` folder somewhere else as well (e.g. OneDrive), in case the PC fails.
+- Test a restore once a month on a spare database, so you know the backups work.
+
+### Logs and monitoring
+
+| What | Where | Kept |
+|---|---|---|
+| Everything (logins, stock changes, server start) | `logs/smartstock.log` | 14 days (new file every midnight) |
+| Warnings and errors only (failed logins, crashes) | `logs/errors.log` | 14 days |
+| Requests and server output (Linux) | `journalctl -u smartstock` | systemd's journal settings |
+| Nginx access and error logs (Linux) | `/var/log/nginx/smartstock.*.log` | 14 days (logrotate) |
+
+**Health check:** `flask health` checks that the database is reachable, the tables are at the latest migration,
+machine data is present and an active admin exists. It prints `[OK]` or `[FAIL]` per check and exits with code 1
+on any failure, so a scheduled task or monitoring tool can raise an alert. Run it after every update and restore.
+
+**What to watch:** new lines in `logs/errors.log` (a burst of failed logins, or errors), and the daily
+backup file appearing in `backups/`.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `SECRET_KEY must be set` or `DATABASE_URL must be set` | `.env` is missing that line, or you are not in the project folder |
+| `Can't connect to MySQL server` | Start MySQL (Windows: *Services* → MySQL80 → Start; Linux: `sudo systemctl start mysql`) |
+| `Access denied for user 'smartstock'` | The password in `DATABASE_URL` does not match the one in Quick start step 1 |
+| `flask health` says `[FAIL] Migrations` | `flask db upgrade` |
+| Pages error after an update | Follow the rollback plan above |
+
 ## Known limitations
 
 - No live sensor feed: machine stock is a manual count, and sales come from the demo seed (in production they would
   come from the machines' sales feed).
-- Runs on Flask's development server; no production deployment was done for the semester project.
+- On Windows, SmartStock is served over plain http inside the local network. HTTPS needs the Linux set-up
+  (Nginx with a free certificate), described under Deployment.
 - No limit on login attempts yet: failed logins are logged (`Failed login for ...`), but repeated guessing is not
   slowed down. Adding a short lock-out after several failures would be the next security step.
 
@@ -321,5 +483,5 @@ Full detail (constraint and index tables, normalisation notes): [`docs/erd.md`](
 
 | Member | Student no. | Files owned | Reviewed by |
 |---|---|---|---|
-| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management) and their tests (`tests/test_services.py`), `config.py`, `run.py`, `.env.example`, deployment runbook, `README.md` | Josua Olivier |
+| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management) and their tests (`tests/test_services.py`), deployment and operations (`wsgi.py`, `app/logging_setup.py`, `app/backup.py`, `deploy/`, `flask health`, `flask backup`, `flask restore`) and their tests (`tests/test_ops.py`), `config.py`, `run.py`, `.env.example`, `.gitignore`, `.gitattributes`, `README.md` with the runbook | Josua Olivier |
 | Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`) including the REST API (`api.py`), admin pages (`admin.py`) and list helpers (`_listing.py`); API request checks (`app/schemas/`); app factory (`app/__init__.py`); tests for routes, API, contract, pages, admin and end-to-end flows (`tests/test_routes.py`, `test_api.py`, `test_openapi.py`, `test_pages.py`, `test_admin.py`, `test_e2e.py`, `conftest.py`); API contract (`docs/openapi.json`, `docs/api.md`), end-to-end flows and screenshots (`docs/e2e_flows.md`, `docs/screenshots/`, `scripts/capture_screenshots.py`), impact and sustainability report (`docs/impact_report.md`, `docs/impact/`, `scripts/impact_report.py`, `scripts/benchmark.py`), README sections: screenshots, REST API, impact report | Claudia Aird |
