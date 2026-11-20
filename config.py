@@ -4,6 +4,11 @@ Secrets come from environment variables (see .env.example), never from the code.
 """
 import os
 
+
+def _env_flag(name):
+    """True when an environment variable is set to 1 / true / yes."""
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
 # Optional: if python-dotenv is installed, read a local .env file automatically.
 try:
     from dotenv import load_dotenv
@@ -32,6 +37,15 @@ class Config:
     BUFFER_DAYS = 3                # days of sales we want sitting in a drawer
     SALES_WINDOW_DAYS = 30         # trailing window for turnover and demand (objective O3)
 
+    # ---- logging (see app/logging_setup.py) ----
+    LOG_DIR = os.environ.get("LOG_DIR", "logs")
+    LOG_RETENTION_DAYS = 14        # daily log files are kept for 14 days
+
+    # ---- login cookie safety ----
+    SESSION_COOKIE_HTTPONLY = True     # page scripts cannot read the login cookie
+    SESSION_COOKIE_SAMESITE = "Lax"    # other sites cannot send forms with it
+    REMEMBER_COOKIE_HTTPONLY = True
+
     # ---- baseline used for the impact estimate (from the proposal) ----
     BASELINE_TRIPS_PER_WEEK = 2
     MINUTES_PER_TRIP = 60
@@ -58,6 +72,13 @@ class ProductionConfig(Config):
     # No fallbacks: production must provide a real key and database through the environment.
     SECRET_KEY = os.environ.get("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
+    # Behind Nginx with HTTPS (the Linux server set-up in deploy/), set BEHIND_HTTPS_PROXY=1:
+    # cookies are then only sent over HTTPS, and wsgi.py trusts the proxy's headers.
+    # Leave it off when trying production mode on your own PC over plain http.
+    BEHIND_HTTPS_PROXY = _env_flag("BEHIND_HTTPS_PROXY")
+    SESSION_COOKIE_SECURE = BEHIND_HTTPS_PROXY
+    REMEMBER_COOKIE_SECURE = BEHIND_HTTPS_PROXY
+    PREFERRED_URL_SCHEME = "https" if BEHIND_HTTPS_PROXY else "http"
 
 
 config_by_name = {
