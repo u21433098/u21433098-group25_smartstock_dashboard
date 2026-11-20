@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SmartStock runtime folders (never commit logs, backups or personal editor settings)
+logs/
+backups/
+.vscode/

@@ -1,0 +1,8 @@
+# Linux server files must keep Linux line endings, even when committed from Windows.
+deploy/*.service text eol=lf
+deploy/*.timer text eol=lf
+deploy/*.conf text eol=lf
+deploy/logrotate-* text eol=lf
+
+# Windows batch files must keep Windows line endings, or cmd.exe can misread them.
+*.cmd text eol=crlf

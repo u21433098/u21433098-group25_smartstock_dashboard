@@ -1,0 +1,14 @@
+# Runs the SmartStock backup every day at 02:00 (catches up after a power cut).
+# Install (as root):
+#     sudo cp deploy/smartstock-backup.service deploy/smartstock-backup.timer /etc/systemd/system/
+#     sudo systemctl daemon-reload
+#     sudo systemctl enable --now smartstock-backup.timer
+[Unit]
+Description=Daily SmartStock database backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+# Keep Nginx's SmartStock logs for 14 days (the app's own logs rotate themselves).
+#     sudo cp deploy/logrotate-nginx-smartstock /etc/logrotate.d/smartstock
+/var/log/nginx/smartstock.*.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+        [ -s /run/nginx.pid ] && kill -USR1 "$(cat /run/nginx.pid)"
+    endscript
+}

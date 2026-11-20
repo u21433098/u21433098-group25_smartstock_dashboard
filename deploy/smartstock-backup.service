@@ -1,0 +1,9 @@
+# One database backup run. Started every night by smartstock-backup.timer.
+[Unit]
+Description=SmartStock database backup
+
+[Service]
+Type=oneshot
+User=smartstock
+WorkingDirectory=/opt/smartstock
+ExecStart=/opt/smartstock/venv/bin/flask backup
