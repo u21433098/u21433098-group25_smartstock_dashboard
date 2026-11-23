@@ -208,3 +208,73 @@ def test_passwords_can_be_reset_and_changed(admin, msiza):
     assert user_service.verify_credentials("msiza@adlers.test", "another-pass")
     with pytest.raises(ValidationError):
         user_service.reset_password(admin, int(msiza.id), "short")
+
+
+# ------------------------------------------------------------------ catalogue: suppliers, products, machines
+from app.services import catalogue_service  # noqa: E402
+
+
+def test_add_a_supplier_product_and_machine_then_restock(app, msiza):
+    supplier = catalogue_service.create_supplier(msiza, "Supplier D - Dairy", 2)
+    product = catalogue_service.create_product(msiza, "Yoghurt 175g", supplier["id"], 11.5, 12, 10)
+    assert (product["central_qty"], product["central_threshold"], product["unit_cost"]) == (0, 10, 11.5)
+    machine = catalogue_service.create_machine(msiza, "up-13", "Engineering 3")
+    assert machine["code"] == "UP-13" and machine["products"] == 0
+    slot = catalogue_service.add_product_to_machine(msiza, machine["id"], product["id"])
+    assert slot["machine"] == {"qty": 0, "capacity": 20, "threshold": 5}
+    split = inventory_service.restock_visit(machine["id"], product["id"], 30, "Mr Msiza")
+    assert split["to_machine"] == 20 and sum(split.values()) == 30
+    # the planning pages still work with a product that has no sales yet
+    assert analytics_service.get_allocation(machine["id"])["rows"][0]["name"] == "Yoghurt 175g"
+    analytics_service.build_shopping_list()
+    analytics_service.get_dashboard_summary()
+
+
+def test_catalogue_updates(app, msiza):
+    assert catalogue_service.update_product(msiza, 1, unit_cost="9.99", case_size=12)["unit_cost"] == 9.99
+    assert catalogue_service.update_supplier(msiza, 3, lead_time_days=4)["lead_time_days"] == 4
+    assert catalogue_service.update_machine(msiza, 2, location="Library, ground floor")["location"] == "Library, ground floor"
+
+
+def test_catalogue_duplicates_are_conflicts_not_crashes(app, msiza):
+    for call, field in ((lambda: catalogue_service.create_product(msiza, "Coca-Cola 300ml", 1, 9, 24), "name"),
+                        (lambda: catalogue_service.create_machine(msiza, "up-01", "Elsewhere"), "code"),
+                        (lambda: catalogue_service.create_supplier(msiza, "Supplier A - Beverages", 2), "name"),
+                        (lambda: catalogue_service.update_product(msiza, 2, name="Coca-Cola 300ml"), "name"),
+                        (lambda: catalogue_service.add_product_to_machine(msiza, 1, 1), "product_id")):
+        with pytest.raises(ConflictError) as error:
+            call()
+        assert error.value.field == field
+
+
+def test_catalogue_input_is_checked(app, msiza):
+    for call, field in ((lambda: catalogue_service.create_product(msiza, "", 1, 9, 24), "name"),
+                        (lambda: catalogue_service.create_product(msiza, "X", 1, -1, 24), "unit_cost"),
+                        (lambda: catalogue_service.create_product(msiza, "X", 1, "lots", 24), "unit_cost"),
+                        (lambda: catalogue_service.create_product(msiza, "X", 1, 9, 0), "case_size"),
+                        (lambda: catalogue_service.create_supplier(msiza, "X", True), "lead_time_days"),
+                        (lambda: catalogue_service.add_product_to_machine(msiza, 1, 9, threshold=50), "threshold")):
+        with pytest.raises(ValidationError) as error:
+            call()
+        assert error.value.field == field
+    with pytest.raises(NotFoundError):
+        catalogue_service.create_product(msiza, "X", 99, 9, 24)
+    with pytest.raises(NotFoundError):
+        catalogue_service.update_machine(msiza, 999, location="x")
+
+
+def test_reading_the_catalogue(app):
+    assert catalogue_service.list_suppliers()["total"] == 3
+    priciest = catalogue_service.list_products(sort="-unit_cost", per_page="1")["items"][0]
+    assert priciest["name"] == "Energy Drink 250ml" and priciest["machines"] > 0
+    water = catalogue_service.list_products(supplier_id="3")["items"]
+    assert {p["supplier"] for p in water} == {"Supplier C - Water"}
+    assert catalogue_service.get_supplier(1)["products"] == 6
+    with pytest.raises(NotFoundError):
+        catalogue_service.get_product(999)
+
+
+def test_admin_reads_one_account_but_a_user_cannot(admin, msiza):
+    assert user_service.get_user_detail(admin, 1)["email"] == "msiza@adlers.test"
+    with pytest.raises(PermissionDenied):
+        user_service.get_user_detail(msiza, 2)
