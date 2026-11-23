@@ -215,12 +215,19 @@ def set_machine_count(machine_id, product_id, qty, user_name):
 
 
 def restock_visit(machine_id, product_id, units_brought, user_name):
-    """Log a restock: fill the machine, top up the drawer, return the rest.
+    """Log a restock visit, the way Mr Msiza works:
 
-    Returns how the units were split, e.g. {"to_machine": 12, "to_drawer": 6, "to_central": 2}.
+    1. take the units out of central storage (the bulk box),
+    2. fill the machine, then top up the drawer,
+    3. return whatever is left to central storage.
+
+    Central storage therefore only goes down by what went into the machine and the drawer,
+    and a visit can never take more than central storage holds.
+    Returns how the units were split, e.g. {"to_machine": 12, "to_drawer": 6, "to_central": 2}
+    ("to_central" is the number returned).
     """
     if not 1 <= units_brought <= MAX_UNITS_BROUGHT:
-        raise ValidationError(f"Units brought must be between 1 and {MAX_UNITS_BROUGHT}.", "units")
+        raise ValidationError(f"Units taken must be between 1 and {MAX_UNITS_BROUGHT}.", "units")
     if db.session.get(MachineStock, (machine_id, product_id)) is None:
         raise NotFoundError("That machine does not carry this product.", "product_id")
 
@@ -229,6 +236,15 @@ def restock_visit(machine_id, product_id, units_brought, user_name):
     plan = analytics_service.get_allocation(machine_id)
     recommended = next(r["recommended"] for r in plan["rows"] if r["product_id"] == product_id)
 
+    # Lock central first: the units come out of it, so two visits at once cannot
+    # both take the same stock.
+    central = _locked(CentralStock, product_id)
+    if central.qty < units_brought:
+        db.session.rollback()
+        raise ValidationError(
+            f"Central storage only holds {central.qty} of this product, so {units_brought} "
+            "cannot be taken. Record the supplier delivery on the Central storage page first.",
+            "units")
     machine_row = _locked(MachineStock, (machine_id, product_id))
     drawer_row = _locked(DrawerStock, (machine_id, product_id))
     drawer_total = db.session.scalar(
@@ -246,12 +262,12 @@ def restock_visit(machine_id, product_id, units_brought, user_name):
             old = row.qty
             row.qty += added
             _log_movement(machine_id, product_id, tier, old, row.qty, user_name, "Restock visit")
-    if to_central:
-        central = _locked(CentralStock, product_id)
+    used = to_machine + to_drawer
+    if used:
         old = central.qty
-        central.qty += to_central
+        central.qty -= used
         _log_movement(machine_id, product_id, "Central", old, central.qty, user_name,
-                      "Returned after restock visit")
+                      f"Restock visit: {units_brought} taken, {to_central} returned")
     db.session.commit()
     return {"to_machine": to_machine, "to_drawer": to_drawer, "to_central": to_central}
 

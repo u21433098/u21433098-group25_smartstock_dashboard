@@ -210,6 +210,39 @@ def test_passwords_can_be_reset_and_changed(admin, msiza):
         user_service.reset_password(admin, int(msiza.id), "short")
 
 
+# ------------------------------------------------------------------ restock visit: units come out of central storage
+from app.models import CentralStock, DrawerStock, MachineStock, StockMovement  # noqa: E402
+
+
+def _tiers(machine_id, product_id):
+    db.session.rollback()          # read what MySQL holds now, not an older snapshot
+    return (db.session.get(MachineStock, (machine_id, product_id)).qty,
+            db.session.get(DrawerStock, (machine_id, product_id)).qty,
+            db.session.get(CentralStock, product_id).qty)
+
+
+def test_restock_takes_the_units_out_of_central_storage(app):
+    machine, drawer, central = _tiers(2, 1)
+    split = inventory_service.restock_visit(2, 1, 40, "Mr Msiza")
+    used = split["to_machine"] + split["to_drawer"]
+    assert sum(split.values()) == 40
+    # central only goes down by what went into the machine and the drawer; the rest came back
+    assert _tiers(2, 1) == (machine + split["to_machine"], drawer + split["to_drawer"], central - used)
+    # stock only moved between tiers: none appeared or disappeared
+    assert sum(_tiers(2, 1)) == machine + drawer + central
+    note = db.session.scalars(db.select(StockMovement.note).where(StockMovement.tier == "Central")
+                              .order_by(StockMovement.movement_id.desc())).first()
+    assert note == f"Restock visit: 40 taken, {split['to_central']} returned"
+
+
+def test_restock_cannot_take_more_than_central_storage_holds(app):
+    before = _tiers(2, 1)
+    with pytest.raises(ValidationError) as error:
+        inventory_service.restock_visit(2, 1, before[2] + 1, "Mr Msiza")
+    assert error.value.field == "units" and "Central storage only holds" in error.value.message
+    assert _tiers(2, 1) == before                                    # nothing changed
+
+
 # ------------------------------------------------------------------ catalogue: suppliers, products, machines
 from app.services import catalogue_service  # noqa: E402
 
@@ -222,6 +255,7 @@ def test_add_a_supplier_product_and_machine_then_restock(app, msiza):
     assert machine["code"] == "UP-13" and machine["products"] == 0
     slot = catalogue_service.add_product_to_machine(msiza, machine["id"], product["id"])
     assert slot["machine"] == {"qty": 0, "capacity": 20, "threshold": 5}
+    inventory_service.set_central_count(product["id"], 50, "Mr Msiza")    # the first delivery
     split = inventory_service.restock_visit(machine["id"], product["id"], 30, "Mr Msiza")
     assert split["to_machine"] == 20 and sum(split.values()) == 30
     # the planning pages still work with a product that has no sales yet
