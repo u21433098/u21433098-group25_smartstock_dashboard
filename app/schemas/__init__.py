@@ -118,3 +118,95 @@ def password_change(body):
     """PUT /me/password  {"current_password": "...", "new_password": "..."}"""
     _only(body, ("current_password", "new_password"))
     return _text(body, "current_password"), _text(body, "new_password")
+
+
+# ------------------------------------------------------------------ catalogue: suppliers, products, machines
+def _number(body, field, required=True):
+    """A JSON number (int or decimal), e.g. a price in rand."""
+    if field not in body:
+        if required:
+            raise ValidationError(f"{field} is required.", field)
+        return None
+    value = body[field]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValidationError(f"{field} must be a number, e.g. 9.50.", field)
+    return value
+
+
+def _at_least_one(values, fields):
+    if all(v is None for v in values):
+        raise ValidationError(f"Send at least one of: {', '.join(fields)}.")
+
+
+def new_supplier(body):
+    """POST /suppliers  {"name": "...", "lead_time_days": 2}"""
+    _only(body, ("name", "lead_time_days"))
+    return {"name": _text(body, "name", max_length=100),
+            "lead_time_days": _int(body, "lead_time_days", minimum=0, maximum=365)}
+
+
+def supplier_update(body):
+    """PATCH /suppliers/{id}  {"name"?, "lead_time_days"?}"""
+    fields = ("name", "lead_time_days")
+    _only(body, fields)
+    values = {"name": _text(body, "name", required=False, max_length=100),
+              "lead_time_days": _int(body, "lead_time_days", minimum=0, maximum=365, required=False)}
+    _at_least_one(values.values(), fields)
+    return values
+
+
+def new_product(body):
+    """POST /products  {"name", "supplier_id", "unit_cost", "case_size", "central_threshold"?}"""
+    _only(body, ("name", "supplier_id", "unit_cost", "case_size", "central_threshold"))
+    values = {"name": _text(body, "name", max_length=100),
+              "supplier_id": _int(body, "supplier_id", minimum=1),
+              "unit_cost": _number(body, "unit_cost"),
+              "case_size": _int(body, "case_size", minimum=1, maximum=1000)}
+    threshold = _int(body, "central_threshold", minimum=0, maximum=5000, required=False)
+    if threshold is not None:
+        values["central_threshold"] = threshold
+    return values
+
+
+def product_update(body):
+    """PATCH /products/{id}  {"name"?, "supplier_id"?, "unit_cost"?, "case_size"?}"""
+    fields = ("name", "supplier_id", "unit_cost", "case_size")
+    _only(body, fields)
+    values = {"name": _text(body, "name", required=False, max_length=100),
+              "supplier_id": _int(body, "supplier_id", minimum=1, required=False),
+              "unit_cost": _number(body, "unit_cost", required=False),
+              "case_size": _int(body, "case_size", minimum=1, maximum=1000, required=False)}
+    _at_least_one(values.values(), fields)
+    return values
+
+
+def new_machine(body):
+    """POST /machines  {"code": "UP-13", "location": "...", "drawer_capacity"?: 50}"""
+    _only(body, ("code", "location", "drawer_capacity"))
+    values = {"code": _text(body, "code", max_length=20), "location": _text(body, "location", max_length=100)}
+    capacity = _int(body, "drawer_capacity", minimum=0, maximum=1000, required=False)
+    if capacity is not None:
+        values["drawer_capacity"] = capacity
+    return values
+
+
+def machine_update(body):
+    """PATCH /machines/{id}  {"location"?, "drawer_capacity"?}"""
+    fields = ("location", "drawer_capacity")
+    _only(body, fields)
+    values = {"location": _text(body, "location", required=False, max_length=100),
+              "drawer_capacity": _int(body, "drawer_capacity", minimum=0, maximum=1000, required=False)}
+    _at_least_one(values.values(), fields)
+    return values
+
+
+def machine_product(body):
+    """POST /machines/{id}/products  {"product_id", "capacity"?, "threshold"?, "drawer_capacity"?, "drawer_threshold"?}"""
+    optional = ("capacity", "threshold", "drawer_capacity", "drawer_threshold")
+    _only(body, ("product_id",) + optional)
+    values = {"product_id": _int(body, "product_id", minimum=1)}
+    for field in optional:
+        value = _int(body, field, minimum=0, maximum=1000, required=False)
+        if value is not None:
+            values[field] = value
+    return values
