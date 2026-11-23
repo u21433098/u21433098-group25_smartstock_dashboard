@@ -196,3 +196,14 @@ def test_backup_and_restore_round_trip_on_mysql(app, tmp_path, monkeypatch):
     assert restored.exit_code == 0, restored.output
     db.session.rollback()
     assert db.session.get(CentralStock, 13).qty == 10              # back to the backed-up value
+
+
+# ------------------------------------------------------------------ python seed.py
+def test_seed_script_asks_first_then_loads_the_demo_data(monkeypatch, capsys):
+    import seed
+    monkeypatch.setenv("APP_CONFIG", "testing")
+    monkeypatch.setattr(sys, "argv", ["seed.py"])
+    monkeypatch.setattr("builtins.input", lambda _question: "n")
+    assert seed.main() == 1 and "Nothing changed" in capsys.readouterr().out
+    monkeypatch.setattr(sys, "argv", ["seed.py", "--yes"])
+    assert seed.main() == 0 and "Demo data loaded" in capsys.readouterr().out
