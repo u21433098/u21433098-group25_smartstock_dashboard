@@ -1,22 +1,29 @@
 """Application factory: builds and configures the Flask app."""
 import logging
+import os
 import secrets
 
 from flask import Flask, abort, jsonify, render_template, request, session, url_for
 from flask_login import LoginManager, current_user
 
-from app.extensions import init_db
+from app.extensions import db, init_db
 from app.services import alert_service, user_service
 from config import config_by_name, current_config_name
 
 login_manager = LoginManager()
+
+# The pages and the stylesheet live at the top of the project (templates/ and static/),
+# as in the course's recommended structure, next to app.py.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def create_app(config_name=None):
     """Build the app. Without a config name it uses APP_CONFIG from .env (default: development),
     which is how the `flask` command calls it (FLASK_APP=app:create_app)."""
     config_name = config_name or current_config_name()
-    app = Flask(__name__)
+    app = Flask(__name__,
+                template_folder=os.path.join(PROJECT_ROOT, "templates"),
+                static_folder=os.path.join(PROJECT_ROOT, "static"))
     app.config.from_object(config_by_name[config_name])
     if not app.config["SECRET_KEY"]:
         raise RuntimeError("SECRET_KEY must be set in the environment for this configuration.")
@@ -125,7 +132,12 @@ def create_app(config_name=None):
                                message="That page cannot be used that way."), 405
 
     @app.errorhandler(500)
-    def server_error(_error):
+    def server_error(error):
+        # Undo any half-finished database change, and record what went wrong (with the
+        # stack trace) in logs/errors.log. The visitor only sees a short, friendly message.
+        db.session.rollback()
+        app.logger.error("Server error on %s %s: %s", request.method, request.path,
+                         getattr(error, "original_exception", error), exc_info=True)
         if _is_api():
             return _json_error(500, "Something went wrong on our side. Please try again.")
         return render_template("error.html", code=500,
