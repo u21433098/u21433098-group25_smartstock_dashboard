@@ -34,7 +34,7 @@
   <div class="col-12 col-lg-6">
     <div class="card h-100"><div class="card-body">
       <h2 class="h6">Log a restock visit</h2>
-      <p class="small text-muted">Enter the units you brought. They fill the machine first, then the drawer, and any remainder is returned to central storage.</p>
+      <p class="small text-muted">Enter the units you took out of central storage. They fill the machine first, then the drawer, and any remainder goes back to central storage, so central storage only goes down by what was used.</p>
       <form method="post" action="{{ url_for('inventory.restock', machine_id=machine.id) }}">
         {{ csrf_input() }}
         <div class="mb-3">
@@ -44,7 +44,7 @@
           </select>
         </div>
         <div class="mb-3">
-          <label for="units" class="form-label">Units brought</label>
+          <label for="units" class="form-label">Units taken from central storage</label>
           <input type="number" class="form-control" id="units" name="units" min="1" max="1000" step="1" required>
         </div>
         <button type="submit" class="btn btn-ss">Save restock</button>

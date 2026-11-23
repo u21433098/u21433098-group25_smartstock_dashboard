@@ -86,7 +86,7 @@ def restock(machine_id):
     else:
         try:
             split = inventory_service.restock_visit(machine_id, product_id, units, current_user.name)
-            flash(f"Restock saved: {split['to_machine']} into the machine, "
+            flash(f"Restock saved: {units} taken from central storage; {split['to_machine']} into the machine, "
                   f"{split['to_drawer']} into the drawer, "
                   f"{split['to_central']} returned to central storage.", "success")
         except ValueError as error:
