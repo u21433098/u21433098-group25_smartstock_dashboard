@@ -5,7 +5,7 @@ BFB 321, Group 25. Project: **SmartStock**, a three-tier stock dashboard for Adl
 | Member | Student no. | GitHub username |
 |---|---|---|
 | Claudia Aird | u21433098 | [u21433098](https://github.com/u21433098) |
-| Josua Olivier | u23524431 | [Josua-Olivier](https://github.com/u23524431) |
+| Josua Olivier | u23524431 | [Josua-Olivier](https://github.com/Josua-Olivier) |
 
 SmartStock is a web dashboard that gives Mr Msiza **one system** for the three places his vending stock lives:
 the **machine**, the small **drawer** at its base, and the shared **central storage** at the Adlers café.
@@ -22,7 +22,7 @@ It replaces the paper log and goes beyond what the third-party app Moma tracks.
 |---|---|---|
 | Machine, drawer and central stock side by side | Machines list, then a detailed machine’s page | O1, O2 |
 | Record a manual machine count | Machine page | O1 (fallback) |
-| Log a restock visit (fills machine, then drawer, then returns the rest to central) | Machine page | O2 |
+| Log a restock visit (takes the units out of central storage, fills the machine, then the drawer, and returns the rest to central) | Machine page | O2 |
 | Central storage tracker | Central storage | O2 |
 | Drawer allocation ranking from 30-day sales | Allocation | O3 |
 | Consolidated shopping list, one order per supplier | Shopping list | O4 |
@@ -88,6 +88,7 @@ flask setup --yes
 ```
 
 This runs the migrations (`flask db upgrade`) and loads the demo data (`flask seed --yes`) in one go.
+To reload only the demo data later, run `python seed.py` (or `flask seed --yes`).
 
 **4. Run it**
 
@@ -114,7 +115,7 @@ If activation says "running scripts is disabled", run once:
 | `flask setup --yes` | One step from an empty database: builds the tables, then loads the demo data |
 | `flask db upgrade` | Creates or updates the tables to the latest migration |
 | `flask db downgrade base` | Rollback: removes all SmartStock tables |
-| `flask seed --yes` | Wipes all rows and loads the demo data (sales end yesterday) |
+| `flask seed --yes` or `python seed.py --yes` | Wipes all rows and loads the demo data (sales end yesterday) |
 | `flask create-admin` | Creates an admin account (asks for name, email and password) |
 | `flask db migrate -m "message"` | After changing `app/models`, generates a new migration file |
 
@@ -155,16 +156,16 @@ app/
   services/           the only layer that touches the database; calls the supply chain models
                       (errors.py: error types; pagination.py: paging, sorting, input checks)
   data/seed_data.py   synthetic demo data, loaded with `flask seed`
-  templates/          one HTML file per page + base.html and _macros.html
-  static/css/         style.css (on top of Bootstrap CSS)
   schemas/            checks for the JSON the REST API receives (types, ranges, unknown fields)
+templates/            one HTML file per page (Jinja2) + base.html and _macros.html
+static/css/           style.css (on top of Bootstrap CSS; no JavaScript)
 models/               supply chain model: pure Python, no Flask, no database
   safety_stock.py     average demand, std deviation, safety stock, reorder point
   allocation.py       turnover ranking, greedy drawer allocation, restock split
   procurement.py      order-up-to level, order quantity, supplier grouping, trips saved, EOQ
 migrations/           Flask-Migrate (Alembic) migration scripts; 0001 builds every table
 docs/                 erd.md + erd.png (data model), schema.sql (generated SQL),
-                      api.md + openapi.json (API), e2e_flows.md + screenshots/, impact_report.md + impact/
+                      api.md + openapi.json (API), e2e_flows.md + screenshots/, impact/ (report charts)
 scripts/              capture_screenshots.py, benchmark.py, impact_report.py (documentation tools)
 tests/                pytest unit, database, services, operations, API, contract, page and end-to-end tests
 deploy/               production files: start_production.cmd and backup.cmd (Windows),
@@ -172,6 +173,7 @@ deploy/               production files: start_production.cmd and backup.cmd (Win
 app/backup.py         `flask backup` and `flask restore` (Windows and Linux)
 config.py             DEV / TEST / PROD settings
 app.py                main application file: python app.py starts the app (development)
+seed.py               python seed.py loads the demo data (same as flask seed)
 wsgi.py               production entry point for Waitress or Gunicorn
 app/logging_setup.py  console + daily log files, kept 14 days
 ```
@@ -306,8 +308,10 @@ Errors always look like `{"error": {"status": 400, "message": "...", "field": "q
 
 ## Impact report
 
-[**docs/impact_report.md**](docs/impact_report.md) compares the paper-and-Moma baseline from the proposal with
-SmartStock running on the demo data, with charts, sustainability and a measured scalability test (12 to 200 machines).
+The impact report is a Word document, **SmartStock_Impact_Report.docx**, submitted separately (it also states the
+Turnitin similarity score). It compares the paper-and-Moma baseline from the proposal with SmartStock running on
+the demo data, with charts, sustainability and a measured scalability test (12 to 200 machines). Its charts and
+figures are in [`docs/impact/`](docs/impact/), produced by `scripts/impact_report.py` and `scripts/benchmark.py`.
 Headlines (modelled on synthetic data; assumptions are listed in the report):
 
 - 3 of 3 stock tiers tracked instead of 1; 111 paper records replaced; one screen per machine instead of three.
@@ -321,7 +325,8 @@ Headlines (modelled on synthetic data; assumptions are listed in the report):
 
 Nine tables in third normal form: `users`, `suppliers`, `products`, `machines`, one table per stock tier
 (`machine_stock`, `drawer_stock`, `central_stock`), daily `sales` totals, and the `stock_movements` audit trail.
-Every table has `created_at` / `updated_at` audit columns.
+Every table has `created_at` / `updated_at` audit columns, except the `stock_movements` audit trail, which has
+`created_at` only because its rows are never edited.
 
 - **Constraints in the database, not only in Python:** CHECK constraints stop stock going negative or above a
   slot's capacity; foreign keys use RESTRICT, CASCADE or SET NULL depending on what should happen on delete.
@@ -497,5 +502,5 @@ backup file appearing in `backups/`.
 
 | Member | Student no. | Files owned | Reviewed by |
 |---|---|---|---|
-| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management, the catalogue: `catalogue_service.py`) and their tests (`tests/test_services.py`), deployment and operations (`wsgi.py`, `app/logging_setup.py`, `app/backup.py`, `deploy/`, `flask health`, `flask backup`, `flask restore`) and their tests (`tests/test_ops.py`), `config.py`, `app.py`, `.env.example`, `.gitignore`, `.gitattributes`, `README.md` with the runbook | Josua Olivier |
-| Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`) including the REST API (`api.py`), admin pages (`admin.py`) and list helpers (`_listing.py`); API request checks (`app/schemas/`); app factory (`app/__init__.py`); tests for routes, API, contract, pages, admin and end-to-end flows (`tests/test_routes.py`, `test_api.py`, `test_openapi.py`, `test_pages.py`, `test_admin.py`, `test_e2e.py`, `conftest.py`); API contract (`docs/openapi.json`, `docs/api.md`), end-to-end flows and screenshots (`docs/e2e_flows.md`, `docs/screenshots/`, `scripts/capture_screenshots.py`), impact and sustainability report (`docs/impact_report.md`, `docs/impact/`, `scripts/impact_report.py`, `scripts/benchmark.py`), README sections: screenshots, REST API, impact report | Claudia Aird |
+| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`, `seed.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management, the catalogue: `catalogue_service.py`) and their tests (`tests/test_services.py`), deployment and operations (`wsgi.py`, `app/logging_setup.py`, `app/backup.py`, `deploy/`, `flask health`, `flask backup`, `flask restore`) and their tests (`tests/test_ops.py`), `config.py`, `app.py`, `.env.example`, `.gitignore`, `.gitattributes`, `README.md` with the runbook | Josua Olivier |
+| Josua Olivier | u23524431 | Frontend: page templates (`templates/`) and stylesheet (`static/css/style.css`); routes (`app/blueprints/`) including the REST API (`api.py`), admin pages (`admin.py`) and list helpers (`_listing.py`); API request checks (`app/schemas/`); app factory (`app/__init__.py`); tests for routes, API, contract, pages, admin and end-to-end flows (`tests/test_routes.py`, `test_api.py`, `test_openapi.py`, `test_pages.py`, `test_admin.py`, `test_e2e.py`, `conftest.py`); API contract (`docs/openapi.json`, `docs/api.md`), end-to-end flows and screenshots (`docs/e2e_flows.md`, `docs/screenshots/`, `scripts/capture_screenshots.py`), impact and sustainability figures (`docs/impact/`, `scripts/impact_report.py`, `scripts/benchmark.py`) for the Word report, README sections: screenshots, REST API | Claudia Aird |
