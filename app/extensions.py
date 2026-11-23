@@ -32,7 +32,8 @@ def init_db(app):
     seeded every time an app is created, so each test starts from the same demo data.
     """
     if not app.config.get("SQLALCHEMY_DATABASE_URI"):
-        raise RuntimeError("DATABASE_URL must be set in the environment for this configuration.")
+        raise RuntimeError("DATABASE_URL is not set. Copy .env.example to .env and put your MySQL "
+                           "login in DATABASE_URL (see Quick start in README.md).")
     db.init_app(app)
     migrate.init_app(app, db)
     from app import models  # noqa: F401  (registers the tables with SQLAlchemy)
@@ -62,6 +63,19 @@ def _sqlite_enforce_foreign_keys(dbapi_connection, _record):
 
 def _register_cli(app):
     """Extra `flask ...` commands for setting up the database."""
+
+    @app.cli.command("setup")
+    @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
+    def setup_command(yes):
+        """One step from an empty database: build or update every table, then load the demo data."""
+        from flask_migrate import upgrade
+        from app.data import seed_data
+        if not yes:
+            click.confirm("This builds the tables and REPLACES ALL ROWS with the demo data. Continue?",
+                          abort=True)
+        upgrade()                        # same as `flask db upgrade`
+        seed_data.seed()
+        click.echo("Database ready: tables built and demo data loaded. Run `flask health` to check.")
 
     @app.cli.command("seed")
     @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
