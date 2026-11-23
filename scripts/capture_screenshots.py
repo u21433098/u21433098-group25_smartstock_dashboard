@@ -9,7 +9,7 @@ One-time setup (not needed to run SmartStock itself):
 
 Run (with the app running in another terminal, on freshly seeded demo data):
     flask seed --yes
-    python run.py                                   (other terminal)
+    python app.py                                   (other terminal)
     python scripts/capture_screenshots.py
 
 Options:
