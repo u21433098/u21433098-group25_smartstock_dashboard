@@ -1022,7 +1022,7 @@
         ],
         "operationId": "logRestock",
         "summary": "Log a restock visit",
-        "description": "The units fill the machine first, then top up the drawer to the allocation recommendation; the rest goes back to central storage. Every change is audited.",
+        "description": "The units are taken out of central storage, fill the machine first, then top up the drawer to the allocation recommendation; the rest goes back to central storage, so central storage only goes down by what was used. Asking for more than central storage holds is a 400 and changes nothing. Every change is audited.",
         "security": [
           {
             "sessionCookie": [],
@@ -2232,7 +2232,7 @@
             "minimum": 1,
             "maximum": 1000,
             "example": 30,
-            "description": "Units brought on the visit."
+            "description": "Units taken out of central storage for the visit (at most what central storage holds)."
           }
         },
         "required": [

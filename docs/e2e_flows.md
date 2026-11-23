@@ -22,12 +22,15 @@ All data is the synthetic demo data from `flask seed`.
 | 1 | Logs in | The dashboard shows 12 low-stock items, including Coca-Cola at UP-01 (4 left, threshold 5) |
 | 2 | Opens **Alerts**, filters to machine UP-01 | The machine slot at 4, plus a low drawer slot |
 | 3 | Opens **UP-01** | Machine, drawer and central stock side by side for all 8 products |
-| 4 | Logs a restock visit: Coca-Cola, 30 units | "Restock saved: 16 into the machine, 6 into the drawer, 8 returned to central storage." Machine now 20 / 20 |
+| 4 | Takes 30 cans of Coca-Cola out of central storage and logs the visit | "Restock saved: 30 taken from central storage; 16 into the machine, 6 into the drawer, 8 returned to central storage." Machine now 20 / 20, central storage 60 to 38 |
 | 5 | Back to the alert list | The UP-01 Coca-Cola alert is gone; UP-01 drops from 2 alerts to 1 |
-| 6 | Opens **Activity**, filtered to UP-01 | Three audit rows (machine 4 to 20, drawer 6 to 12, central 60 to 68), each "by Mr Msiza" |
+| 6 | Opens **Activity**, filtered to UP-01 | Three audit rows (machine 4 to 20, drawer 6 to 12, central 60 to 38 "Restock visit: 30 taken, 8 returned"), each "by Mr Msiza" |
 
-The 30 units are split by the rule in `models/allocation.py`: fill the machine first, then top the drawer up to the
-allocation page's recommendation (never past the drawer's capacity), and return the rest to central storage.
+This is how Mr Msiza works (proposal section 1): he takes a bulk box out of central storage, fills the machine first,
+then tops the drawer up to the allocation page's recommendation (never past the drawer's capacity), and takes the rest
+back to central storage. The split follows `models/allocation.py`. Central storage therefore only goes down by what was
+used (60 - 16 - 6 = 38): no stock appears or disappears. A visit can never take more than central storage holds; the
+form then says so and nothing changes.
 
 | Dashboard | Alerts for UP-01 |
 |---|---|
@@ -66,8 +69,9 @@ allocation page's recommendation (never past the drawer's capacity), and return 
 | Step | What he does | What SmartStock shows |
 |---|---|---|
 | 1 | Opens **Allocation**, machine UP-04 | Products ranked by 30-day turnover. Water 500ml: "Top up by 8" |
-| 2 | Logs a restock at UP-04: Water 500ml, 40 units | The machine is filled first, then the drawer up to the recommendation |
-| 3 | Back to **Allocation** for UP-04 | Water 500ml: "No change" (the recommendation is met) |
+| 2 | Central storage only holds 10 bottles, so he records this week's delivery: Water 500ml = 250 | "Central storage count saved." |
+| 3 | Logs a restock at UP-04: 40 bottles taken from central storage | The machine is filled first, then the drawer up to the recommendation; the rest goes back |
+| 4 | Back to **Allocation** for UP-04 | Water 500ml: "No change" (the recommendation is met) |
 
 ![Allocation for UP-04](screenshots/10_flow3_allocation_up04.png)
 
@@ -98,8 +102,10 @@ allocation page's recommendation (never past the drawer's capacity), and return 
 
 1. The program logs in (`GET /api/v1/auth/csrf`, then `POST /api/v1/auth/login`).
 2. It asks for the most urgent machine alert: `GET /api/v1/alerts?tier=Machine&severity=out` returns Water at UP-05, qty 0.
-3. It logs the restock: `POST /api/v1/machines/5/restocks` with `{"product_id": 13, "units": 24}`.
-4. The alert is gone (`GET /api/v1/alerts?machine_id=5`), the audit trail has the change (`GET /api/v1/movements`), and
+3. Central storage only holds 10 bottles, so it first records the supplier delivery: `PUT /api/v1/central/13` with
+   `{"qty": 250}`. (Asking for 24 bottles before that gives a `400`: central storage only holds 10.)
+4. It logs the restock: `POST /api/v1/machines/5/restocks` with `{"product_id": 13, "units": 24}`.
+5. The alert is gone (`GET /api/v1/alerts?machine_id=5`), the audit trail has the change (`GET /api/v1/movements`), and
    **the same change shows on the web Activity page**, because both use the same services and database.
 
 Requests and responses: see [`api.md`](api.md).
@@ -118,7 +124,7 @@ SmartStock uses **no JavaScript** (a project decision), so every page is built o
 | **Error, form input** | The form comes back with a red message and what was typed is kept (e.g. adding an account with a duplicate email) | Admin "Add an account" |
 | **Error, not allowed / not found** | Friendly 403 and 404 pages with a "Go back home" button; the API answers in JSON instead | ![404](screenshots/15_error_404.png) |
 | **Success** | A green message says exactly what changed, e.g. how a restock was split | Flow 1, step 4 |
-| **Loading** | With no JavaScript there is no partial page: the browser shows its normal loading indicator, and the page arrives complete. Measured server times are in the impact report (scalability section); with 12 machines most pages are built in tens of milliseconds | n/a |
+| **Loading** | With no JavaScript there is no partial page: the browser shows its normal loading indicator, and the page arrives complete. Measured server times are in the impact report (scalability section, submitted separately as a Word document); with 12 machines most pages are built in tens of milliseconds | n/a |
 
 Messages are announced to screen readers: errors and warnings use `role="alert"`, success messages `role="status"`.
 

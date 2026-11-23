@@ -198,19 +198,28 @@ Request: `{"qty": 4}`. Response: the product's three tiers after the change.
 
 ### `POST /machines/3/restocks` (log a restock visit)
 
-Request: `{"product_id": 1, "units": 30}`. The 30 units filled the machine (16), topped the drawer up to its
-recommendation (9) and the rest went back to central storage (5). Each part is a row in the audit trail.
+Request: `{"product_id": 1, "units": 30}`. The 30 units are **taken out of central storage** (60 cans). They fill
+the machine (8), top the drawer up to its recommendation (9), and the rest goes back to central storage (13).
+So central storage only goes down by what was used: 60 - 8 - 9 = 43. Each tier's change is a row in the audit trail.
 
 ```json
 {
-  "split": { "to_machine": 16, "to_drawer": 9, "to_central": 5 },
+  "split": { "to_machine": 8, "to_drawer": 9, "to_central": 13 },
   "stock": {
     "product_id": 1, "name": "Coca-Cola 300ml",
     "machine": { "qty": 20, "capacity": 20,   "threshold": 5 },
     "drawer":  { "qty": 12, "capacity": 12,   "threshold": 2 },
-    "central": { "qty": 65, "capacity": null, "threshold": 20 }
+    "central": { "qty": 43, "capacity": null, "threshold": 20 }
   }
 }
+```
+
+A visit cannot take more than central storage holds. Asking for 24 bottles of water when central storage has 10
+gives a `400`, and nothing changes; record the supplier delivery first (`PUT /central/13`):
+
+```json
+{ "error": { "status": 400, "field": "units",
+             "message": "Central storage only holds 10 of this product, so 24 cannot be taken. Record the supplier delivery on the Central storage page first." } }
 ```
 
 ### `GET /movements?machine_id=3&per_page=2` (audit trail)
@@ -218,16 +227,16 @@ recommendation (9) and the rest went back to central storage (5). Each part is a
 ```json
 {
   "items": [
-    { "id": 4, "time": "2026-11-19 07:17", "created_at": "2026-11-19T07:17:31",
+    { "id": 3, "time": "2026-11-23 07:13", "created_at": "2026-11-23T07:13:14",
       "machine_id": 3, "machine": "UP-03", "product_id": 1, "product": "Coca-Cola 300ml",
-      "tier": "Central", "old": 60, "new": 65, "change": 5,
-      "user": "Mr Msiza", "note": "Returned after restock visit" },
-    { "id": 3, "time": "2026-11-19 07:17", "created_at": "2026-11-19T07:17:31",
+      "tier": "Central", "old": 60, "new": 43, "change": -17,
+      "user": "Mr Msiza", "note": "Restock visit: 30 taken, 13 returned" },
+    { "id": 2, "time": "2026-11-23 07:13", "created_at": "2026-11-23T07:13:14",
       "machine_id": 3, "machine": "UP-03", "product_id": 1, "product": "Coca-Cola 300ml",
       "tier": "Drawer", "old": 3, "new": 12, "change": 9,
       "user": "Mr Msiza", "note": "Restock visit" }
   ],
-  "page": 1, "per_page": 2, "total": 4, "pages": 2, "has_prev": false, "has_next": true
+  "page": 1, "per_page": 2, "total": 3, "pages": 2, "has_prev": false, "has_next": true
 }
 ```
 
