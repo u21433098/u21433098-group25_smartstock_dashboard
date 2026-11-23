@@ -1,4 +1,4 @@
-"""Compute the impact numbers and draw the charts for docs/impact_report.md.
+"""Compute the impact numbers and draw the charts for the impact report (SmartStock_Impact_Report.docx).
 
 Every "with SmartStock" number comes from the app itself, run on the synthetic demo
 data (an in-memory database, so nothing real is touched). Baseline numbers come from

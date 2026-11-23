@@ -76,7 +76,7 @@ def main():
         page.goto(f"{base}/machines/1")
         shot(page, "04_flow1_machine_up01_before")
         page.get_by_label("Product").first.select_option(label="Coca-Cola 300ml")
-        page.get_by_label("Units brought").fill("30")
+        page.get_by_label("Units taken from central storage").fill("30")
         page.get_by_role("button", name="Save restock").click()
         expect(page.get_by_role("status")).to_contain_text("Restock saved")
         shot(page, "05_flow1_restock_saved")
