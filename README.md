@@ -1,6 +1,11 @@
 # SmartStock: Adlers Vending Machine Operations
 
-BFB 321, Group 25. Claudia Aird (u21433098) and Josua Olivier (u23524431).
+BFB 321, Group 25. Project: **SmartStock**, a three-tier stock dashboard for Adlers Vending Machine Operations.
+
+| Member | Student no. | GitHub username |
+|---|---|---|
+| Claudia Aird | u21433098 | [u21433098](https://github.com/u21433098) |
+| Josua Olivier | u23524431 | [u23524431](https://github.com/u23524431) |
 
 SmartStock is a web dashboard that gives Mr Msiza **one system** for the three places his vending stock lives:
 the **machine**, the small **drawer** at its base, and the shared **central storage** at the Adlers café.
@@ -76,17 +81,18 @@ copy .env.example .env
 
 Open `.env` and put your MySQL password into `DATABASE_URL`, and set your own `SECRET_KEY`.
 
-**3. Build the tables and load the demo data**
+**3. Build the tables and load the demo data** (one step)
 
 ```
-flask db upgrade
-flask seed --yes
+flask setup --yes
 ```
+
+This runs the migrations (`flask db upgrade`) and loads the demo data (`flask seed --yes`) in one go.
 
 **4. Run it**
 
 ```
-python run.py
+python app.py
 ```
 
 Open http://127.0.0.1:5000 in a browser. The page styles load Bootstrap's CSS from a CDN, so an internet connection is needed.
@@ -105,6 +111,7 @@ If activation says "running scripts is disabled", run once:
 
 | Command | What it does |
 |---|---|
+| `flask setup --yes` | One step from an empty database: builds the tables, then loads the demo data |
 | `flask db upgrade` | Creates or updates the tables to the latest migration |
 | `flask db downgrade base` | Rollback: removes all SmartStock tables |
 | `flask seed --yes` | Wipes all rows and loads the demo data (sales end yesterday) |
@@ -164,7 +171,7 @@ deploy/               production files: start_production.cmd and backup.cmd (Win
                       systemd, Gunicorn, Nginx and log-rotation files (Linux server)
 app/backup.py         `flask backup` and `flask restore` (Windows and Linux)
 config.py             DEV / TEST / PROD settings
-run.py                development entry point (python run.py)
+app.py                main application file: python app.py starts the app (development)
 wsgi.py               production entry point for Waitress or Gunicorn
 app/logging_setup.py  console + daily log files, kept 14 days
 ```
@@ -243,7 +250,9 @@ Sorting: `sort=key` ascending or `sort=-key` descending, only from the allowed k
 | `analytics_service.get_allocation(machine_id)` | Drawer recommendation (O3) |
 | `analytics_service.build_shopping_list()` | One order per supplier (O4) |
 | `analytics_service.get_dashboard_summary()` | KPIs, top alerts, order summary, best sellers, sales window |
-| `user_service.list_users / admin_create_user / set_role / set_active / reset_password` | Admin only (first argument is the logged-in user) |
+| `catalogue_service.create_/update_supplier, create_/update_product, create_/update_machine, add_product_to_machine` | Add and change suppliers, products and machines (both roles; duplicates give 409) |
+| `catalogue_service.list_suppliers / get_supplier / list_products / get_product` | `list_products`: `search`, `supplier_id`; sort `name`, `supplier`, `unit_cost`, `central_qty` |
+| `user_service.list_users / get_user_detail / admin_create_user / set_role / set_active / reset_password` | Admin only (first argument is the logged-in user) |
 | `user_service.change_own_password(user, current, new)` | Any logged-in user |
 
 **Errors** (`app/services/errors.py`): `ValidationError` (400), `PermissionDenied` (403), `NotFoundError` (404) and
@@ -279,13 +288,18 @@ Full guide with real examples: [**docs/api.md**](docs/api.md). Machine-readable 
 | PUT | `/me/password` | logged in | Change my password |
 | GET | `/dashboard` | logged in | KPIs, top alerts, order summary, best sellers |
 | GET | `/machines`, `/machines/{id}` | logged in | Machines (search, sort, page); one machine with all three tiers |
+| POST, PATCH | `/machines`, `/machines/{id}` | logged in | Add a machine; change its location or drawer capacity |
+| POST | `/machines/{id}/products` | logged in | Start carrying a product in a machine |
 | PUT | `/machines/{id}/stock/{product_id}` | logged in | Record a machine count |
 | POST | `/machines/{id}/restocks` | logged in | Log a restock visit |
 | GET | `/machines/{id}/allocation` | logged in | Drawer allocation ranking (O3) |
 | GET, PUT | `/central`, `/central/{product_id}` | logged in | Central storage (filter, sort, page); stock take |
 | GET | `/alerts`, `/movements` | logged in | Low-stock alerts; the audit trail (filters, paging) |
 | GET | `/shopping-list` | logged in | One order per supplier (O4) |
+| GET, POST | `/products`, `/suppliers` | logged in | List (filter, sort, page); add |
+| GET, PATCH | `/products/{id}`, `/suppliers/{id}` | logged in | One product or supplier; change it |
 | GET, POST | `/users` | admin | List accounts; add an account |
+| GET | `/users/{id}` | admin | One account |
 | PATCH, PUT | `/users/{id}`, `/users/{id}/password` | admin | Role or on/off; reset a password |
 
 Errors always look like `{"error": {"status": 400, "message": "...", "field": "qty"}}`.
@@ -325,7 +339,7 @@ Three ways to run SmartStock:
 
 | Where | Server | Use it for |
 |---|---|---|
-| Your PC, `python run.py` | Flask's built-in server | Development only (shows debug pages, one request at a time) |
+| Your PC, `python app.py` | Flask's built-in server | Development only (shows debug pages, one request at a time) |
 | One Windows PC at Adlers | Waitress (`deploy\start_production.cmd`) | Realistic for Adlers: one office PC, reached by others on the café network |
 | A Linux server | Gunicorn behind Nginx with HTTPS (`deploy/`) | A proper hosted deployment, reachable from a phone anywhere |
 
@@ -340,7 +354,7 @@ Make a strong key once with: `python -c "import secrets; print(secrets.token_hex
 
 ### Option A: Windows PC with Waitress
 
-Do the Quick start first (database, `.env`, `flask db upgrade`). Then:
+Do the Quick start first (database, `.env`, `flask db upgrade`; production does not need the demo data). Then:
 
 ```
 flask create-admin                      # real admin account (or flask seed --yes for the demo data)
@@ -483,5 +497,5 @@ backup file appearing in `backups/`.
 
 | Member | Student no. | Files owned | Reviewed by |
 |---|---|---|---|
-| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management) and their tests (`tests/test_services.py`), deployment and operations (`wsgi.py`, `app/logging_setup.py`, `app/backup.py`, `deploy/`, `flask health`, `flask backup`, `flask restore`) and their tests (`tests/test_ops.py`), `config.py`, `run.py`, `.env.example`, `.gitignore`, `.gitattributes`, `README.md` with the runbook | Josua Olivier |
+| Claudia Aird | u21433098 | Supply chain model (`models/`) and its unit tests (`tests/test_safety_stock.py`, `test_allocation.py`, `test_procurement.py`), demo data (`app/data/seed_data.py`), services layer (`app/services/`), MySQL data model (`app/models/`, `app/extensions.py`, `migrations/`, `docs/erd.md`, `docs/erd.png`, `docs/schema.sql`) and its tests (`tests/test_database.py`), services for the REST API (paging, filtering, sorting, error types, roles and account management, the catalogue: `catalogue_service.py`) and their tests (`tests/test_services.py`), deployment and operations (`wsgi.py`, `app/logging_setup.py`, `app/backup.py`, `deploy/`, `flask health`, `flask backup`, `flask restore`) and their tests (`tests/test_ops.py`), `config.py`, `app.py`, `.env.example`, `.gitignore`, `.gitattributes`, `README.md` with the runbook | Josua Olivier |
 | Josua Olivier | u23524431 | Frontend: page templates (`app/templates/`) and stylesheet (`app/static/css/style.css`); routes (`app/blueprints/`) including the REST API (`api.py`), admin pages (`admin.py`) and list helpers (`_listing.py`); API request checks (`app/schemas/`); app factory (`app/__init__.py`); tests for routes, API, contract, pages, admin and end-to-end flows (`tests/test_routes.py`, `test_api.py`, `test_openapi.py`, `test_pages.py`, `test_admin.py`, `test_e2e.py`, `conftest.py`); API contract (`docs/openapi.json`, `docs/api.md`), end-to-end flows and screenshots (`docs/e2e_flows.md`, `docs/screenshots/`, `scripts/capture_screenshots.py`), impact and sustainability report (`docs/impact_report.md`, `docs/impact/`, `scripts/impact_report.py`, `scripts/benchmark.py`), README sections: screenshots, REST API, impact report | Claudia Aird |
