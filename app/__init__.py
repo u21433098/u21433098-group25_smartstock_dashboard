@@ -7,12 +7,15 @@ from flask_login import LoginManager, current_user
 
 from app.extensions import init_db
 from app.services import alert_service, user_service
-from config import config_by_name
+from config import config_by_name, current_config_name
 
 login_manager = LoginManager()
 
 
-def create_app(config_name="development"):
+def create_app(config_name=None):
+    """Build the app. Without a config name it uses APP_CONFIG from .env (default: development),
+    which is how the `flask` command calls it (FLASK_APP=app:create_app)."""
+    config_name = config_name or current_config_name()
     app = Flask(__name__)
     app.config.from_object(config_by_name[config_name])
     if not app.config["SECRET_KEY"]:
