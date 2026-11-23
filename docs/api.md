@@ -27,7 +27,7 @@ Why the token: it stops another website from making a logged-in browser change s
 
 | Role | Who | Can |
 |---|---|---|
-| `user` | Mr Msiza and anyone helping him restock | Read everything, record counts, log restocks, do stock takes, change own password |
+| `user` | Mr Msiza and anyone helping him restock | Read everything, record counts, log restocks, do stock takes, add and change suppliers, products and machines, change own password |
 | `admin` | The developer | Everything above, plus the `/users` endpoints |
 
 Not logged in gives **401**. Logged in but not allowed gives **403**. The role is checked in the services layer as
@@ -82,7 +82,10 @@ and **unknown fields are rejected**, so a typo such as `"quantity"` instead of `
 | PUT | `/me/password` | logged in | Change my password | 204 |
 | GET | `/dashboard` | logged in | KPIs, top 5 alerts, order summary, best sellers, sales window | 200 |
 | GET | `/machines` | logged in | List machines with their alert count | 200 |
+| POST | `/machines` | logged in | Add a machine | 201 |
 | GET | `/machines/{machine_id}` | logged in | One machine: all three stock tiers per product (O2) | 200 |
+| PATCH | `/machines/{machine_id}` | logged in | Change a machine's location or drawer capacity | 200 |
+| POST | `/machines/{machine_id}/products` | logged in | Start carrying a product in a machine (slots start at 0 units) | 201 |
 | PUT | `/machines/{machine_id}/stock/{product_id}` | logged in | Record a machine count | 200 |
 | POST | `/machines/{machine_id}/restocks` | logged in | Log a restock visit (machine, then drawer, rest to central) | 200 |
 | GET | `/machines/{machine_id}/allocation` | logged in | Drawer allocation ranking (O3) | 200 |
@@ -91,8 +94,17 @@ and **unknown fields are rejected**, so a typo such as `"quantity"` instead of `
 | GET | `/alerts` | logged in | Low-stock alerts in all tiers | 200 |
 | GET | `/movements` | logged in | Audit trail of every stock change | 200 |
 | GET | `/shopping-list` | logged in | One order per supplier (O4) | 200 |
+| GET | `/products` | logged in | List products with supplier, cost and central stock | 200 |
+| POST | `/products` | logged in | Add a product (its central storage row starts at 0) | 201 |
+| GET | `/products/{product_id}` | logged in | One product | 200 |
+| PATCH | `/products/{product_id}` | logged in | Change a product's name, supplier, cost or case size | 200 |
+| GET | `/suppliers` | logged in | List suppliers | 200 |
+| POST | `/suppliers` | logged in | Add a supplier | 201 |
+| GET | `/suppliers/{supplier_id}` | logged in | One supplier | 200 |
+| PATCH | `/suppliers/{supplier_id}` | logged in | Change a supplier's name or lead time | 200 |
 | GET | `/users` | admin | List accounts | 200 |
 | POST | `/users` | admin | Add an account | 201 |
+| GET | `/users/{user_id}` | admin | One account | 200 |
 | PATCH | `/users/{user_id}` | admin | Change role and/or switch an account on or off | 200 |
 | PUT | `/users/{user_id}/password` | admin | Set a new password for an account | 204 |
 | GET | `/openapi.json` | anyone | This contract | 200 |
@@ -105,6 +117,8 @@ and **unknown fields are rejected**, so a typo such as `"quantity"` instead of `
 | `GET /central` | `search` (product name), `supplier_id`, `low_only=true` | `name`, `supplier`, `qty`, `value` |
 | `GET /alerts` | `tier` (`Machine`, `Drawer`, `Central`), `severity` (`out`, `low`), `machine_id` | fixed: out of stock first, then by tier |
 | `GET /movements` | `machine_id`, `product_id`, `tier`, `date_from`, `date_to` (YYYY-MM-DD) | fixed: newest first |
+| `GET /products` | `search` (product name), `supplier_id` | `name`, `supplier`, `unit_cost`, `central_qty` |
+| `GET /suppliers` | none | fixed: by name |
 | `GET /users` | none | fixed: by name |
 
 ---
@@ -260,6 +274,34 @@ The same request **without the `X-CSRF-Token` header** gives **400**:
 ```json
 { "error": { "status": 403, "message": "You do not have permission to do that." } }
 ```
+
+---
+
+### Adding to the catalogue: supplier, product, machine (real responses)
+
+```powershell
+$h = @{ "X-CSRF-Token" = $token }
+Invoke-RestMethod "$api/suppliers" -Method Post -WebSession $s -ContentType "application/json" -Headers $h `
+    -Body '{"name": "Supplier D - Dairy", "lead_time_days": 2}'                                # 201
+Invoke-RestMethod "$api/products" -Method Post -WebSession $s -ContentType "application/json" -Headers $h `
+    -Body '{"name": "Yoghurt 175g", "supplier_id": 4, "unit_cost": 11.5, "case_size": 12}'      # 201
+Invoke-RestMethod "$api/machines" -Method Post -WebSession $s -ContentType "application/json" -Headers $h `
+    -Body '{"code": "UP-13", "location": "Engineering 3"}'                                      # 201
+Invoke-RestMethod "$api/machines/13/products" -Method Post -WebSession $s -ContentType "application/json" -Headers $h `
+    -Body '{"product_id": 16}'                                                                  # 201
+Invoke-RestMethod "$api/products/16" -Method Patch -WebSession $s -ContentType "application/json" -Headers $h `
+    -Body '{"unit_cost": 12.25}'                                                                # 200
+```
+
+`POST /products` response:
+
+```json
+{ "id": 16, "name": "Yoghurt 175g", "supplier_id": 4, "supplier": "Supplier D - Dairy", "unit_cost": 11.5,
+  "case_size": 12, "central_qty": 0, "central_threshold": 20, "machines": 0 }
+```
+
+Adding a product name or machine code that already exists gives **409**, e.g.
+`{"error": {"status": 409, "message": "A product called 'Yoghurt 175g' already exists.", "field": "name"}}`.
 
 ---
 

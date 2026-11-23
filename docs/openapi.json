@@ -3,7 +3,7 @@
   "info": {
     "title": "SmartStock API",
     "version": "1.0.0",
-    "description": "JSON API for SmartStock, the three-tier vending stock dashboard for Adlers (BFB 321, Group 25).\n\n**Logging in.** The API uses the same session as the web pages. 1) `GET /auth/csrf` to get a token and a session cookie. 2) `POST /auth/login` with the token in the `X-CSRF-Token` header. Keep the cookie for later requests.\n\n**Changes** (POST, PUT, PATCH) always need the `X-CSRF-Token` header. Reads (GET) do not.\n\n**Roles.** `user` (Mr Msiza and his helpers) can view everything and change stock. `admin` can also manage accounts.\n\n**Lists** are paged (`page`, `per_page` up to 100), sorted with `sort=key` or `sort=-key`, and filtered with the parameters listed per endpoint.\n\n**Errors** always look like `{\"error\": {\"status\": 400, \"message\": \"...\", \"field\": \"qty\"}}`.\n\nAll data in the demo database is synthetic."
+    "description": "JSON API for SmartStock, the three-tier vending stock dashboard for Adlers (BFB 321, Group 25).\n\n**Logging in.** The API uses the same session as the web pages. 1) `GET /auth/csrf` to get a token and a session cookie. 2) `POST /auth/login` with the token in the `X-CSRF-Token` header. Keep the cookie for later requests.\n\n**Changes** (POST, PUT, PATCH) always need the `X-CSRF-Token` header. Reads (GET) do not.\n\n**Roles.** `user` (Mr Msiza and his helpers) can view everything and change stock. `admin` can also manage accounts. Both can add and change suppliers, products and machines.\n\n**Lists** are paged (`page`, `per_page` up to 100), sorted with `sort=key` or `sort=-key`, and filtered with the parameters listed per endpoint.\n\n**Errors** always look like `{\"error\": {\"status\": 400, \"message\": \"...\", \"field\": \"qty\"}}`.\n\nAll data in the demo database is synthetic."
   },
   "servers": [
     {
@@ -32,6 +32,9 @@
     },
     {
       "name": "Planning"
+    },
+    {
+      "name": "Catalogue"
     },
     {
       "name": "Users (admin)"
@@ -318,6 +321,54 @@
             "$ref": "#/components/parameters/per_page"
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "Machines"
+        ],
+        "operationId": "createMachine",
+        "summary": "Add a machine",
+        "description": "The code is stored in capitals and must be unique. The machine carries no products until POST /machines/{machine_id}/products.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Machine"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMachine"
+              }
+            }
+          }
+        }
       }
     },
     "/machines/{machine_id}": {
@@ -356,6 +407,557 @@
             "$ref": "#/components/parameters/MachineId"
           }
         ]
+      },
+      "patch": {
+        "tags": [
+          "Machines"
+        ],
+        "operationId": "updateMachine",
+        "summary": "Change a machine's location or drawer capacity",
+        "description": "The code never changes.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Machine"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachineUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/machines/{machine_id}/products": {
+      "post": {
+        "tags": [
+          "Machines"
+        ],
+        "operationId": "addMachineProduct",
+        "summary": "Start carrying a product in a machine",
+        "description": "Creates one machine slot and one drawer slot for the product, both at 0 units. Restock it afterwards.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created: the product's three-tier row in this machine.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineStockRow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachineProduct"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "listProducts",
+        "summary": "List products",
+        "description": "Every product with its supplier, cost and central storage level.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of products.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Product"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Text in the product name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": false,
+            "description": "Only this supplier's products.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort key; a leading minus sorts high to low.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "-central_qty",
+                "-name",
+                "-supplier",
+                "-unit_cost",
+                "central_qty",
+                "name",
+                "supplier",
+                "unit_cost"
+              ],
+              "default": "name"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/per_page"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "createProduct",
+        "summary": "Add a product",
+        "description": "Its central storage row is created at 0 units. The name must be unique.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewProduct"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/{product_id}": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "getProduct",
+        "summary": "One product",
+        "description": "Product with supplier and central storage level.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductId"
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "updateProduct",
+        "summary": "Change a product",
+        "description": "Name, supplier, unit cost or case size.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/suppliers": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "listSuppliers",
+        "summary": "List suppliers",
+        "description": "Every supplier with its lead time.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of suppliers.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Supplier"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/per_page"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "createSupplier",
+        "summary": "Add a supplier",
+        "description": "The name must be unique.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supplier"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSupplier"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/suppliers/{supplier_id}": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "getSupplier",
+        "summary": "One supplier",
+        "description": "",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supplier"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SupplierId"
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "updateSupplier",
+        "summary": "Change a supplier",
+        "description": "Name or lead time.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supplier"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SupplierId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierUpdate"
+              }
+            }
+          }
+        }
       }
     },
     "/machines/{machine_id}/stock/{product_id}": {
@@ -1012,6 +1614,45 @@
       }
     },
     "/users/{user_id}": {
+      "get": {
+        "tags": [
+          "Users (admin)"
+        ],
+        "operationId": "getUser",
+        "summary": "One account",
+        "description": "Admin only.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ]
+      },
       "patch": {
         "tags": [
           "Users (admin)"
@@ -1205,6 +1846,16 @@
         "in": "path",
         "required": true,
         "description": "User id.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "SupplierId": {
+        "name": "supplier_id",
+        "in": "path",
+        "required": true,
+        "description": "Supplier id.",
         "schema": {
           "type": "integer",
           "minimum": 1
@@ -2158,6 +2809,294 @@
           "order",
           "best_sellers",
           "sales_window"
+        ]
+      },
+      "Supplier": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "example": "Supplier D - Dairy"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "description": "Days from order to delivery."
+          },
+          "products": {
+            "type": "integer",
+            "description": "Products bought from this supplier."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "lead_time_days",
+          "products"
+        ]
+      },
+      "NewSupplier": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Supplier D - Dairy"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365,
+            "example": 2
+          }
+        },
+        "required": [
+          "name",
+          "lead_time_days"
+        ]
+      },
+      "SupplierUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          }
+        },
+        "description": "Send name, lead_time_days, or both.",
+        "minProperties": 1
+      },
+      "Product": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "example": "Yoghurt 175g"
+          },
+          "supplier_id": {
+            "type": "integer"
+          },
+          "supplier": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
+            "description": "Rand per unit."
+          },
+          "case_size": {
+            "type": "integer",
+            "description": "Units per case."
+          },
+          "central_qty": {
+            "type": "integer",
+            "description": "Units in central storage now."
+          },
+          "central_threshold": {
+            "type": "integer",
+            "description": "Central storage alert level."
+          },
+          "machines": {
+            "type": "integer",
+            "description": "Machines that carry this product."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "supplier_id",
+          "supplier",
+          "unit_cost",
+          "case_size",
+          "central_qty",
+          "central_threshold",
+          "machines"
+        ]
+      },
+      "NewProduct": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Yoghurt 175g"
+          },
+          "supplier_id": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 4
+          },
+          "unit_cost": {
+            "type": "number",
+            "description": "Rand per unit, up to 2 decimals."
+          },
+          "case_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "example": 12
+          },
+          "central_threshold": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000,
+            "description": "Central storage alert level (default 20)."
+          }
+        },
+        "required": [
+          "name",
+          "supplier_id",
+          "unit_cost",
+          "case_size"
+        ]
+      },
+      "ProductUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "supplier_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "unit_cost": {
+            "type": "number"
+          },
+          "case_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "description": "Send any of the fields to change.",
+        "minProperties": 1
+      },
+      "Machine": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "example": "UP-13"
+          },
+          "location": {
+            "type": "string"
+          },
+          "drawer_capacity": {
+            "type": "integer"
+          },
+          "products": {
+            "type": "integer",
+            "description": "Products this machine carries."
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "location",
+          "drawer_capacity",
+          "products"
+        ]
+      },
+      "NewMachine": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "UP-13"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Engineering 3"
+          },
+          "drawer_capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Total drawer units (default 50)."
+          }
+        },
+        "required": [
+          "code",
+          "location"
+        ]
+      },
+      "MachineUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "location": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "drawer_capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "description": "Send location, drawer_capacity, or both. The code never changes.",
+        "minProperties": 1
+      },
+      "MachineProduct": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 16
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Machine slot size (default 20)."
+          },
+          "threshold": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Machine alert level (default 5)."
+          },
+          "drawer_capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Drawer slot size (default 12)."
+          },
+          "drawer_threshold": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Drawer alert level (default 2)."
+          }
+        },
+        "required": [
+          "product_id"
         ]
       },
       "User": {
