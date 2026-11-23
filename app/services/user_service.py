@@ -123,6 +123,12 @@ def list_users(acting_user, page=None, per_page=None):
     return paginate_query(db.select(UserRow).order_by(UserRow.name), _user_dict, page, per_page)
 
 
+def get_user_detail(acting_user, user_id):
+    """One account (admin only)."""
+    require(acting_user, "manage_users")
+    return _user_dict(_get_row(user_id))
+
+
 def admin_create_user(acting_user, name, email, password, role="user"):
     """An admin adds an account for Mr Msiza or one of his helpers."""
     require(acting_user, "manage_users")
