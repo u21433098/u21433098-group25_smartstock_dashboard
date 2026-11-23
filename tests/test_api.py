@@ -308,3 +308,62 @@ def test_anyone_can_change_their_own_password(user_api, app):
     ok = user_api.put("/me/password", {"current_password": PASSWORD, "new_password": "another-pass-1"})
     assert ok.status_code == 204
     assert Api(app.test_client()).login(password="another-pass-1").status_code == 200
+
+
+# ------------------------------------------------------------------ catalogue: create, read and update
+def test_create_read_update_suppliers_products_and_machines(user_api):
+    supplier = user_api.post("/suppliers", {"name": "Supplier D - Dairy", "lead_time_days": 2})
+    assert supplier.status_code == 201
+    sid = supplier.get_json()["id"]
+    assert user_api.get(f"/suppliers/{sid}").get_json()["name"] == "Supplier D - Dairy"
+    assert user_api.patch(f"/suppliers/{sid}", {"lead_time_days": 3}).get_json()["lead_time_days"] == 3
+    assert user_api.get("/suppliers").get_json()["total"] == 4
+
+    product = user_api.post("/products", {"name": "Yoghurt 175g", "supplier_id": sid, "unit_cost": 11.5, "case_size": 12})
+    assert product.status_code == 201 and product.get_json()["central_qty"] == 0
+    pid = product.get_json()["id"]
+    assert user_api.patch(f"/products/{pid}", {"unit_cost": 12.25}).get_json()["unit_cost"] == 12.25
+    assert user_api.get(f"/products/{pid}").get_json()["supplier"] == "Supplier D - Dairy"
+    assert [p["name"] for p in user_api.get("/products", search="yog").get_json()["items"]] == ["Yoghurt 175g"]
+
+    machine = user_api.post("/machines", {"code": "UP-13", "location": "Engineering 3"})
+    assert machine.status_code == 201
+    mid = machine.get_json()["id"]
+    assert user_api.patch(f"/machines/{mid}", {"drawer_capacity": 40}).get_json()["drawer_capacity"] == 40
+    slot = user_api.post(f"/machines/{mid}/products", {"product_id": pid, "capacity": 24})
+    assert slot.status_code == 201 and slot.get_json()["machine"]["capacity"] == 24
+
+    # the new product works end to end: restock it, then see it on the machine and in the audit trail
+    restock = user_api.post(f"/machines/{mid}/restocks", {"product_id": pid, "units": 30}).get_json()
+    assert restock["stock"]["machine"]["qty"] == 24
+    assert user_api.get(f"/machines/{mid}").get_json()["products"][0]["name"] == "Yoghurt 175g"
+    assert user_api.get("/movements", machine_id=mid).get_json()["total"] >= 2
+
+
+@pytest.mark.parametrize("path, body, status, field", [
+    ("/products", {"name": "Coca-Cola 300ml", "supplier_id": 1, "unit_cost": 9, "case_size": 24}, 409, "name"),
+    ("/products", {"name": "X", "supplier_id": 1, "unit_cost": "9", "case_size": 24}, 400, "unit_cost"),
+    ("/products", {"name": "X", "supplier_id": 1, "unit_cost": 9}, 400, "case_size"),
+    ("/products", {"name": "X", "supplier_id": 99, "unit_cost": 9, "case_size": 24}, 404, None),
+    ("/machines", {"code": "UP-01", "location": "Somewhere"}, 409, "code"),
+    ("/machines", {"code": "UP-14"}, 400, "location"),
+    ("/suppliers", {"name": "Supplier A - Beverages", "lead_time_days": 1}, 409, "name"),
+    ("/machines/1/products", {"product_id": 1}, 409, "product_id"),
+    ("/machines/999/products", {"product_id": 1}, 404, None),
+])
+def test_catalogue_errors(user_api, path, body, status, field):
+    response = user_api.post(path, body)
+    assert response.status_code == status
+    assert error_of(response).get("field") == field
+
+
+def test_catalogue_updates_need_at_least_one_field(user_api):
+    for path in ("/products/1", "/suppliers/1", "/machines/1"):
+        assert user_api.patch(path, {}).status_code == 400
+    assert error_of(user_api.patch("/machines/1", {"code": "NEW"}))["field"] == "code"   # the code cannot change
+
+
+def test_admin_reads_one_user(admin_api, user_api):
+    assert admin_api.get("/users/1").get_json()["email"] == USER_EMAIL
+    assert admin_api.get("/users/999").status_code == 404
+    assert user_api.get("/users/1").status_code == 403

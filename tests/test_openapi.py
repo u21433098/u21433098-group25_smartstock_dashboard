@@ -166,3 +166,28 @@ def test_error_responses_match_the_contract(api, user_api, admin_api, spec):
     login = Api(admin_api.client.application.test_client())
     login.csrf = login.get("/auth/csrf").get_json()["csrf_token"]
     conforms(spec, "/auth/login", "post", login.post("/auth/login", {"email": ADMIN_EMAIL, "password": "wrong"}))  # 401
+
+
+def test_catalogue_endpoints_match_the_contract(user_api, admin_api, spec):
+    created = user_api.post("/suppliers", {"name": "Supplier D - Dairy", "lead_time_days": 2})
+    conforms(spec, "/suppliers", "post", created)
+    sid = created.get_json()["id"]
+    conforms(spec, "/suppliers", "get", user_api.get("/suppliers"))
+    conforms(spec, "/suppliers/{supplier_id}", "get", user_api.get(f"/suppliers/{sid}"))
+    conforms(spec, "/suppliers/{supplier_id}", "patch", user_api.patch(f"/suppliers/{sid}", {"lead_time_days": 3}))
+    product = user_api.post("/products", {"name": "Yoghurt 175g", "supplier_id": sid, "unit_cost": 11.5, "case_size": 12})
+    conforms(spec, "/products", "post", product)
+    pid = product.get_json()["id"]
+    conforms(spec, "/products", "get", user_api.get("/products", per_page=100))
+    conforms(spec, "/products/{product_id}", "get", user_api.get(f"/products/{pid}"))
+    conforms(spec, "/products/{product_id}", "patch", user_api.patch(f"/products/{pid}", {"unit_cost": 12}))
+    machine = user_api.post("/machines", {"code": "UP-13", "location": "Engineering 3"})
+    conforms(spec, "/machines", "post", machine)
+    mid = machine.get_json()["id"]
+    conforms(spec, "/machines/{machine_id}", "patch", user_api.patch(f"/machines/{mid}", {"location": "Eng 3"}))
+    conforms(spec, "/machines/{machine_id}/products", "post", user_api.post(f"/machines/{mid}/products", {"product_id": pid}))
+    conforms(spec, "/machines/{machine_id}/products", "post", user_api.post(f"/machines/{mid}/products", {"product_id": pid}))  # 409
+    conforms(spec, "/products", "post", user_api.post("/products", {"name": "Yoghurt 175g", "supplier_id": sid,
+                                                                     "unit_cost": 1, "case_size": 1}))         # 409
+    conforms(spec, "/users/{user_id}", "get", admin_api.get("/users/1"))
+    conforms(spec, "/users/{user_id}", "get", user_api.get("/users/1"))                                         # 403
