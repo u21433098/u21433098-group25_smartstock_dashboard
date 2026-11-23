@@ -3,8 +3,9 @@
 Image version: `docs/erd.png`. Full SQL: `docs/schema.sql`. Source of truth: `app/models/__init__.py`
 and the migration in `migrations/versions/0001_initial_schema.py`.
 
-Every table also has `created_at` and `updated_at` audit columns (left out of the diagram to keep it
-readable). `stock_movements` has `created_at` only, because audit rows are never edited.
+Every table has `created_at` and `updated_at` audit columns, shown in the diagram. `stock_movements` has
+`created_at` only, because audit rows are never edited. **Key:** PK primary key, FK foreign key, UK unique;
+"IX ..." in the note column names an index that starts with that column (full list under *Indexes* below).
 
 ```mermaid
 erDiagram
@@ -13,62 +14,79 @@ erDiagram
         varchar name
         varchar email UK
         varchar password_hash
-        varchar role "admin or user"
+        varchar role "CHECK admin or user"
         bool is_active
+        datetime created_at
+        datetime updated_at
     }
     suppliers {
         int supplier_id PK
         varchar name UK
         int lead_time_days "CHECK >= 0"
+        datetime created_at
+        datetime updated_at
     }
     products {
         int product_id PK
         varchar name UK
-        int supplier_id FK
-        decimal unit_cost "CHECK >= 0"
+        int supplier_id FK "IX (supplier_id)"
+        decimal unit_cost "DECIMAL(8,2), CHECK >= 0"
         int case_size "CHECK > 0"
+        datetime created_at
+        datetime updated_at
     }
     machines {
         int machine_id PK
         varchar code UK
         varchar location
         int drawer_capacity "total units"
+        datetime created_at
+        datetime updated_at
     }
     machine_stock {
         int machine_id PK,FK
-        int product_id PK,FK
+        int product_id PK,FK "IX (product_id, machine_id)"
         int qty "CHECK 0..capacity"
         int capacity
         int threshold
+        datetime created_at
+        datetime updated_at
     }
     drawer_stock {
         int machine_id PK,FK
-        int product_id PK,FK
+        int product_id PK,FK "IX (product_id, machine_id)"
         int qty "CHECK 0..capacity"
         int capacity
         int threshold
+        datetime created_at
+        datetime updated_at
     }
     central_stock {
         int product_id PK,FK
         int qty "CHECK >= 0"
         int threshold
+        datetime created_at
+        datetime updated_at
     }
     sales {
         int sale_id PK
-        int machine_id FK
-        int product_id FK
-        date sale_date
+        int machine_id FK "UK (machine_id, product_id, sale_date)"
+        int product_id FK "IX (product_id, sale_date)"
+        date sale_date "IX (sale_date)"
         int qty
+        datetime created_at
+        datetime updated_at
     }
     stock_movements {
         int movement_id PK
-        int machine_id FK "NULL for central"
-        int product_id FK
-        int user_id FK
+        int machine_id FK "NULL for central; IX (machine_id, created_at)"
+        int product_id FK "IX (product_id)"
+        int user_id FK "IX (user_id)"
         varchar tier "Machine, Drawer, Central"
         int old_qty
         int new_qty
         varchar note
+        datetime created_at "IX (created_at)"
     }
 
     suppliers ||--o{ products : supplies
@@ -105,7 +123,7 @@ erDiagram
 | `sales (product_id, sale_date)` | Fleet-wide 30-day demand per product (shopping list, best sellers) |
 | `sales (sale_date)` | Finding the latest sales date (the end of the 30-day window) |
 | `stock_movements (machine_id, created_at)` | "Recent changes" on a machine page, newest first |
-| `stock_movements (created_at)`, `(user_id)` | Fleet-wide audit trail; changes by one user |
+| `stock_movements (created_at)`, `(user_id)`, `(product_id)` | Fleet-wide audit trail; changes by one user; the product foreign key |
 | `products (supplier_id)` | Grouping the shopping list by supplier |
 
 ## Normalisation (3NF)
