@@ -130,9 +130,17 @@ def test_machine_count_rejects_text_instead_of_a_number(logged_in):
 def test_restock_visit_splits_units_across_the_tiers(logged_in):
     before = total_stock(1)
     logged_in.post("/machines/2/restock", data={"product_id": 1, "units": 40})
-    assert total_stock(1) == before + 40                      # nothing lost or invented
+    assert total_stock(1) == before                           # moved from central, nothing invented
     assert qty(MachineStock, 2, 1) <= db.session.get(MachineStock, (2, 1)).capacity
     assert qty(DrawerStock, 2, 1) <= db.session.get(DrawerStock, (2, 1)).capacity
+
+
+def test_restock_more_than_central_storage_holds_is_refused(logged_in):
+    central, machine = qty(CentralStock, 13), qty(MachineStock, 5, 13)
+    response = logged_in.post("/machines/5/restock", data={"product_id": 13, "units": central + 1},
+                              follow_redirects=True)
+    assert b"Central storage only holds" in response.data
+    assert (qty(CentralStock, 13), qty(MachineStock, 5, 13)) == (central, machine)
 
 
 def test_restock_is_written_to_the_audit_trail(logged_in):

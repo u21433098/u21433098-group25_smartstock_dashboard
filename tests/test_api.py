@@ -51,6 +51,28 @@ def test_admin_login_has_the_manage_users_permission(api):
     assert "manage_users" in api.login(ADMIN_EMAIL).get_json()["permissions"]
 
 
+def test_server_error_is_json_logged_and_rolled_back(app, user_api, monkeypatch, caplog):
+    """An unexpected crash: the caller gets a short JSON message (no stack trace), the
+    half-finished database change is undone, and the full error goes to the log."""
+    from app.services import analytics_service
+
+    def crash():
+        db.session.get(CentralStock, 1).qty = 999        # a change that must not be saved
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(analytics_service, "get_dashboard_summary", crash)
+    app.config["PROPAGATE_EXCEPTIONS"] = False           # behave like the real server
+    with caplog.at_level(logging.ERROR):
+        response = user_api.get("/dashboard")
+    assert response.status_code == 500
+    assert response.get_json() == {"error": {"status": 500,
+                                             "message": "Something went wrong on our side. Please try again."}}
+    assert "Traceback" not in response.get_data(as_text=True)
+    assert "Server error on GET /api/v1/dashboard: database went away" in caplog.text
+    db.session.rollback()
+    assert db.session.get(CentralStock, 1).qty != 999
+
+
 def test_wrong_password_is_401_and_logged(api, caplog):
     with caplog.at_level(logging.WARNING):
         response = api.login(password="wrong-password")
@@ -192,7 +214,17 @@ def test_restock_splits_the_units_and_returns_the_new_levels(user_api):
     assert response.status_code == 200
     assert sum(body["split"].values()) == 40
     assert body["stock"]["machine"]["qty"] == row["machine"]["qty"] + body["split"]["to_machine"]
-    assert body["stock"]["central"]["qty"] == row["central"]["qty"] + body["split"]["to_central"]
+    # the units come out of central storage; only what went into the machine and drawer stays out
+    used = body["split"]["to_machine"] + body["split"]["to_drawer"]
+    assert body["stock"]["central"]["qty"] == row["central"]["qty"] - used
+
+
+def test_restock_cannot_take_more_than_central_storage_holds(user_api):
+    central = user_api.get("/products/13").get_json()["central_qty"]   # Water 500ml: 10 in the demo data
+    response = user_api.post("/machines/5/restocks", {"product_id": 13, "units": central + 1})
+    error = error_of(response)
+    assert response.status_code == 400 and error["field"] == "units" and "Central storage only holds" in error["message"]
+    assert user_api.get("/products/13").get_json()["central_qty"] == central
 
 
 def test_restock_validation(user_api):
@@ -333,7 +365,9 @@ def test_create_read_update_suppliers_products_and_machines(user_api):
     slot = user_api.post(f"/machines/{mid}/products", {"product_id": pid, "capacity": 24})
     assert slot.status_code == 201 and slot.get_json()["machine"]["capacity"] == 24
 
-    # the new product works end to end: restock it, then see it on the machine and in the audit trail
+    # the new product works end to end: record a delivery, restock from it, then see it on the
+    # machine and in the audit trail
+    assert user_api.put(f"/central/{pid}", {"qty": 50}).status_code == 200
     restock = user_api.post(f"/machines/{mid}/restocks", {"product_id": pid, "units": 30}).get_json()
     assert restock["stock"]["machine"]["qty"] == 24
     assert user_api.get(f"/machines/{mid}").get_json()["products"][0]["name"] == "Yoghurt 175g"

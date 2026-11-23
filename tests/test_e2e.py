@@ -47,12 +47,13 @@ def test_flow_1_alert_to_restock_visit(user_client):
     machine = text(user_client.get("/machines/1"))
     assert row_containing(machine, "Coca-Cola 300ml", "4 / 20")
 
-    # 4. He logs the visit: 30 cans brought.
+    # 4. He takes 30 cans out of central storage and logs the visit.
     done = text(user_client.post("/machines/1/restock", data={"product_id": 1, "units": 30}, follow_redirects=True))
-    split = re.search(r"Restock saved: (\d+) into the machine, (\d+) into the drawer, (\d+) returned", done)
+    split = re.search(r"Restock saved: 30 taken from central storage; (\d+) into the machine, "
+                      r"(\d+) into the drawer, (\d+) returned to central storage", done)
     to_machine, to_drawer, to_central = map(int, split.groups())
-    assert (to_machine, to_machine + to_drawer + to_central) == (16, 30)    # machine filled to 20 first
-    assert row_containing(done, "Coca-Cola 300ml", "20 / 20")
+    assert (to_machine, to_drawer, to_central) == (16, 6, 8)    # machine filled to 20 first, then the drawer
+    assert row_containing(done, "Coca-Cola 300ml", "20 / 20", ">38<")    # central: 60 - 16 - 6
 
     # 5. The alert is gone, and UP-01 now has one alert fewer on the machine list.
     assert not row_containing(text(user_client.get("/alerts?machine_id=1")), "Coca-Cola 300ml", "<td>Machine</td>")
@@ -60,7 +61,7 @@ def test_flow_1_alert_to_restock_visit(user_client):
 
     # 6. The activity log shows every part of the visit, by him.
     log = text(user_client.get("/activity?machine_id=1"))
-    for note in ("Restock visit", "Returned after restock visit"):
+    for note in ("Restock visit", "Restock visit: 30 taken, 8 returned"):
         assert row_containing(log, "Coca-Cola 300ml", note, "Mr Msiza")
 
 
@@ -96,10 +97,14 @@ def test_flow_3_follow_the_drawer_recommendation(user_client):
     water = row_containing(plan, "Water 500ml")
     assert "Top up by 8" in water
 
-    # 2. He brings 40 bottles: the machine is filled first, then the drawer up to the recommendation.
+    # 2. Central storage only has 10 bottles, so he records this week's delivery first.
+    text(user_client.post("/central/13", data={"qty": 250}, follow_redirects=True))
+
+    # 3. He takes 40 bottles: the machine is filled first, then the drawer up to the recommendation,
+    #    and the rest goes back to central storage.
     text(user_client.post("/machines/4/restock", data={"product_id": 13, "units": 40}, follow_redirects=True))
 
-    # 3. The recommendation is now met.
+    # 4. The recommendation is now met.
     assert "No change" in row_containing(text(user_client.get("/allocation?machine=4")), "Water 500ml")
 
 
@@ -141,7 +146,8 @@ def test_flow_5_outside_program_restocks_through_the_api(app):
     alert = robot.get("/alerts", tier="Machine", severity="out").get_json()["items"][0]
     assert (alert["location"], alert["product"], alert["qty"]) == ("UP-05", "Water 500ml", 0)
 
-    # 2. Log the restock for it.
+    # 2. Record the supplier delivery in central storage, then log the restock from it.
+    assert robot.put(f"/central/{alert['product_id']}", {"qty": 250}).status_code == 200
     result = robot.post(f"/machines/{alert['machine_id']}/restocks", {"product_id": alert["product_id"], "units": 24})
     assert result.status_code == 200 and result.get_json()["stock"]["machine"]["qty"] > 0
 
