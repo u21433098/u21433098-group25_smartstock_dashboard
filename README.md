@@ -5,7 +5,7 @@ BFB 321, Group 25. Project: **SmartStock**, a three-tier stock dashboard for Adl
 | Member | Student no. | GitHub username |
 |---|---|---|
 | Claudia Aird | u21433098 | [u21433098](https://github.com/u21433098) |
-| Josua Olivier | u23524431 | [u23524431](https://github.com/u23524431) |
+| Josua Olivier | u23524431 | [Josua-Olivier](https://github.com/u23524431) |
 
 SmartStock is a web dashboard that gives Mr Msiza **one system** for the three places his vending stock lives:
 the **machine**, the small **drawer** at its base, and the shared **central storage** at the Adlers café.
