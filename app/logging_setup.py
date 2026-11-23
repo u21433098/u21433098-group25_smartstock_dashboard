@@ -1,6 +1,6 @@
 """Logging for SmartStock: to the console and to daily log files kept for 14 days.
 
-Call setup_logging() BEFORE create_app() (run.py and wsgi.py do this). Once the root
+Call setup_logging() BEFORE create_app() (app.py and wsgi.py do this). Once the root
 logger has handlers, the logging.basicConfig() call inside create_app() does nothing,
 so these settings win.
 

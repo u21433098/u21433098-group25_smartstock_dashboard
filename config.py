@@ -26,8 +26,9 @@ class Config:
 
     # ---- database (MySQL through the PyMySQL driver) ----
     # Format: mysql+pymysql://USER:PASSWORD@HOST:PORT/DATABASE
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL", "mysql+pymysql://smartstock:smartstock_pw@localhost:3306/smartstock")
+    # No default on purpose: the login (including the password) only ever comes from .env,
+    # never from the code. Without DATABASE_URL the app stops with a clear message.
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}  # reconnect if MySQL dropped an idle link
 
@@ -86,3 +87,11 @@ config_by_name = {
     "testing": TestingConfig,
     "production": ProductionConfig,
 }
+
+
+def current_config_name():
+    """The settings to use, from APP_CONFIG in .env: development (default), testing or production."""
+    name = os.environ.get("APP_CONFIG", "development")
+    if name not in config_by_name:
+        raise RuntimeError(f"APP_CONFIG must be one of: {', '.join(config_by_name)} (it is '{name}').")
+    return name

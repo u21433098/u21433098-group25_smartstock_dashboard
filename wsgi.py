@@ -1,4 +1,4 @@
-"""Production entry point, used by a production web server instead of `python run.py`.
+"""Production entry point, used by a production web server instead of `python app.py`.
 
 Windows (or any OS), with Waitress:
     waitress-serve --listen=127.0.0.1:8000 wsgi:app
