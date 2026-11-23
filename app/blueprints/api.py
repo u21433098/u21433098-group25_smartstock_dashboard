@@ -24,7 +24,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file, session
 from flask_login import current_user, login_user, logout_user
 
 from app import schemas
-from app.services import alert_service, analytics_service, inventory_service, user_service
+from app.services import alert_service, analytics_service, catalogue_service, inventory_service, user_service
 from app.services.errors import NotFoundError, ServiceError
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -125,9 +125,33 @@ def machines():
         search=a.get("search"), sort=a.get("sort"), page=a.get("page"), per_page=a.get("per_page")))
 
 
+@bp.post("/machines")
+def create_machine():
+    """Add a machine (it carries no products until POST /machines/{id}/products)."""
+    machine = catalogue_service.create_machine(current_user, **schemas.new_machine(schemas.json_body()))
+    log.info("API: %s added machine %s", current_user.email, machine["code"])
+    return jsonify(machine), 201
+
+
 @bp.get("/machines/<int:machine_id>")
 def machine(machine_id):
     return jsonify(inventory_service.get_machine_detail(machine_id))
+
+
+@bp.patch("/machines/<int:machine_id>")
+def update_machine(machine_id):
+    """Change a machine's location or drawer capacity."""
+    return jsonify(catalogue_service.update_machine(current_user, machine_id,
+                                                    **schemas.machine_update(schemas.json_body())))
+
+
+@bp.post("/machines/<int:machine_id>/products")
+def add_machine_product(machine_id):
+    """Start carrying a product in a machine (machine and drawer slots start at 0 units)."""
+    row = catalogue_service.add_product_to_machine(current_user, machine_id,
+                                                   **schemas.machine_product(schemas.json_body()))
+    log.info("API: %s added product %s to machine %s", current_user.email, row["product_id"], machine_id)
+    return jsonify(row), 201
 
 
 @bp.put("/machines/<int:machine_id>/stock/<int:product_id>")
@@ -151,6 +175,58 @@ def machine_restock(machine_id):
 @bp.get("/machines/<int:machine_id>/allocation")
 def machine_allocation(machine_id):
     return jsonify(analytics_service.get_allocation(machine_id))
+
+
+# ------------------------------------------------------------------ products and suppliers
+@bp.get("/products")
+def products():
+    a = request.args
+    return jsonify(catalogue_service.list_products(
+        search=a.get("search"), supplier_id=a.get("supplier_id"), sort=a.get("sort"),
+        page=a.get("page"), per_page=a.get("per_page")))
+
+
+@bp.post("/products")
+def create_product():
+    """Add a product; its central storage row starts at 0 units."""
+    product = catalogue_service.create_product(current_user, **schemas.new_product(schemas.json_body()))
+    log.info("API: %s added product %s", current_user.email, product["name"])
+    return jsonify(product), 201
+
+
+@bp.get("/products/<int:product_id>")
+def product(product_id):
+    return jsonify(catalogue_service.get_product(product_id))
+
+
+@bp.patch("/products/<int:product_id>")
+def update_product(product_id):
+    return jsonify(catalogue_service.update_product(current_user, product_id,
+                                                    **schemas.product_update(schemas.json_body())))
+
+
+@bp.get("/suppliers")
+def suppliers():
+    a = request.args
+    return jsonify(catalogue_service.list_suppliers(page=a.get("page"), per_page=a.get("per_page")))
+
+
+@bp.post("/suppliers")
+def create_supplier():
+    supplier = catalogue_service.create_supplier(current_user, **schemas.new_supplier(schemas.json_body()))
+    log.info("API: %s added supplier %s", current_user.email, supplier["name"])
+    return jsonify(supplier), 201
+
+
+@bp.get("/suppliers/<int:supplier_id>")
+def supplier(supplier_id):
+    return jsonify(catalogue_service.get_supplier(supplier_id))
+
+
+@bp.patch("/suppliers/<int:supplier_id>")
+def update_supplier(supplier_id):
+    return jsonify(catalogue_service.update_supplier(current_user, supplier_id,
+                                                     **schemas.supplier_update(schemas.json_body())))
 
 
 # ------------------------------------------------------------------ central storage
@@ -207,6 +283,11 @@ def create_user():
     user = user_service.admin_create_user(current_user, **fields)
     log.info("API: %s created account %s (%s)", current_user.email, user["email"], user["role"])
     return jsonify(user), 201
+
+
+@bp.get("/users/<int:user_id>")
+def user(user_id):
+    return jsonify(user_service.get_user_detail(current_user, user_id))
 
 
 @bp.patch("/users/<int:user_id>")
