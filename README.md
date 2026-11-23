@@ -52,12 +52,31 @@ screenshots in [**docs/e2e_flows.md**](docs/e2e_flows.md). They are tested end t
 |---|---|---|
 | ![Empty](docs/screenshots/13_empty_state_no_match.png) | ![Error](docs/screenshots/14_error_state_bad_sort.png) | ![Phone](docs/screenshots/18_phone_dashboard.png) |
 
-## Quick start (Windows PowerShell)
+## Quick start (Windows)
 
-You need Python 3.11+ and a running MySQL 8 (or MariaDB 10.4+, e.g. from XAMPP) server.
+You need **Python 3.11+** and a running **MySQL 8** server (or MariaDB 10.4+, e.g. from XAMPP).
 
-**1. Create the database and its user** (once). Open the MySQL client as root
-(`mysql -u root -p`, or the SQL tab in phpMyAdmin) and run:
+### Where each command goes
+
+You type commands in **two different places**. Every step below starts with a **Where:** line that says which one.
+
+| Place | What it is | How to open it | Used for |
+|---|---|---|---|
+| **MySQL** | The database's own command window | **MySQL Workbench**: open it, click your local connection, log in as `root`, and use the query tab (run with the ⚡ button). Or: the SQL tab in phpMyAdmin (XAMPP), or `mysql -u root -p` in a terminal | Step 1 only (SQL lines) |
+| **Terminal** | A PowerShell window | In VS Code: *Terminal → New Terminal*. Or: Start menu → *Windows PowerShell* | Everything else |
+
+Before any terminal command after step 2, check two things in the terminal (otherwise you get `'flask' is not recognized`
+or `Could not import`):
+
+1. **You are in the project folder.** The prompt ends in `u21433098-group25_smartstock_dashboard>`. If not,
+   `cd` into it (for example `cd C:\dev\u21433098-group25_smartstock_dashboard`). Opening the project folder in VS Code
+   (*File → Open Folder*) does this for you.
+2. **The virtual environment is active.** The prompt starts with `(venv)`. If not, run `venv\Scripts\activate`.
+   Every new terminal needs this once.
+
+### Step 1. Create the database and its user (once per computer)
+
+**Where: MySQL** (Workbench query tab, phpMyAdmin SQL tab, or `mysql -u root -p`). Not in the terminal.
 
 ```sql
 CREATE DATABASE smartstock CHARACTER SET utf8mb4;
@@ -65,10 +84,15 @@ CREATE USER 'smartstock'@'localhost' IDENTIFIED BY 'choose-a-password';
 GRANT ALL ON smartstock.* TO 'smartstock'@'localhost';
 ```
 
-Pick any password (letters and numbers only, because it goes into a web address); you will type the same one
-into `.env` in step 2. Each person who runs SmartStock creates their own; no real password is stored in this repository.
+Replace `choose-a-password` with your own password (letters and numbers only, because it goes into a web address).
+You will type the same password into `.env` in step 2. Each person who runs SmartStock creates their own; no real
+password is stored in this repository. If MySQL says the database or user already exists, this step was already
+done on this computer: skip it.
 
-**2. Install and configure the app**
+### Step 2. Download and install SmartStock (once per computer)
+
+**Where: Terminal.** Start in the folder where you want the project, for example `cd C:\dev`.
+`git clone` creates the project folder there, so do not run it inside an existing copy.
 
 ```
 git clone https://github.com/u21433098/u21433098-group25_smartstock_dashboard.git
@@ -79,24 +103,38 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Open `.env` and put your MySQL password into `DATABASE_URL`, and set your own `SECRET_KEY`.
+**Where: a text editor** (VS Code or Notepad). Open the new `.env` file in the project folder and change two lines:
 
-**3. Build the tables and load the demo data** (one step)
+- `DATABASE_URL`: replace `change-me` with the password from step 1.
+- `SECRET_KEY`: replace it with your own random text. To make one, run in the terminal:
+  `python -c "import secrets; print(secrets.token_hex(32))"` and paste the result.
+
+Save the file. `.env` stays on your computer: it is listed in `.gitignore`, so it is never committed.
+
+### Step 3. Build the tables and load the demo data (once)
+
+**Where: Terminal** (project folder, `(venv)` active).
 
 ```
 flask setup --yes
+flask health
 ```
 
-This runs the migrations (`flask db upgrade`) and loads the demo data (`flask seed --yes`) in one go.
-To reload only the demo data later, run `python seed.py` (or `flask seed --yes`).
+`flask setup` runs the migrations (`flask db upgrade`) and loads the demo data (`flask seed --yes`) in one go.
+`flask health` must then show four `[OK]` lines. To reload only the demo data later, run `python seed.py`
+(or `flask seed --yes`).
 
-**4. Run it**
+### Step 4. Run it (every time you want to use it)
+
+**Where: Terminal** (project folder, `(venv)` active).
 
 ```
 python app.py
 ```
 
-Open http://127.0.0.1:5000 in a browser. The page styles load Bootstrap's CSS from a CDN, so an internet connection is needed.
+**Where: a web browser.** Open http://127.0.0.1:5000. The terminal must stay open while you use SmartStock;
+press `Ctrl + C` in the terminal to stop it. The page styles load Bootstrap's CSS from a CDN, so an internet
+connection is needed.
 
 **Demo logins** (both use the password `SmartStock123`):
 
@@ -105,10 +143,12 @@ Open http://127.0.0.1:5000 in a browser. The page styles load Bootstrap's CSS fr
 | Mr Msiza | `msiza@adlers.test` | user |
 | Claudia Aird (developer) | `admin@smartstock.test` | admin |
 
-If activation says "running scripts is disabled", run once:
+If `venv\Scripts\activate` says "running scripts is disabled", run this once in the terminal, then activate again:
 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
 
 ### Database commands
+
+**Where: Terminal** (project folder, `(venv)` active).
 
 | Command | What it does |
 |---|---|
@@ -122,6 +162,8 @@ If activation says "running scripts is disabled", run once:
 Stock changes are now saved in MySQL, so they survive a server restart. Run `flask seed --yes` to get back to the demo starting point.
 
 ## Run the tests
+
+**Where: Terminal** (project folder, `(venv)` active).
 
 ```
 pytest
@@ -355,11 +397,12 @@ Production (`wsgi.py`) always uses the `ProductionConfig` in `config.py`. It **r
 On the Linux set-up with HTTPS, also set `BEHIND_HTTPS_PROXY=1`, so the cookie is only sent over HTTPS
 and the real visitor address from Nginx is trusted.
 
-Make a strong key once with: `python -c "import secrets; print(secrets.token_hex(32))"`
+Make a strong key once (**where: Terminal**) with: `python -c "import secrets; print(secrets.token_hex(32))"`
 
 ### Option A: Windows PC with Waitress
 
-Do the Quick start first (database, `.env`, `flask db upgrade`; production does not need the demo data). Then:
+Do the Quick start first (database, `.env`, `flask db upgrade`; production does not need the demo data). Then,
+**where: Terminal** (project folder, `(venv)` active):
 
 ```
 flask create-admin                      # real admin account (or flask seed --yes for the demo data)
@@ -370,8 +413,9 @@ deploy\start_production.cmd            # or double-click it in File Explorer
 Open http://127.0.0.1:8000 on that PC, or http://PC-IP-ADDRESS:8000 from another computer on the network
 (find the address with `ipconfig`; allow Python through the firewall on *Private networks* when Windows asks).
 
-**Start automatically and back up every night** (run once, in PowerShell opened *as Administrator*,
-replacing the path with your project folder; the path must not contain spaces):
+**Start automatically and back up every night.** **Where: a PowerShell window opened as Administrator**
+(Start menu → right-click *Windows PowerShell* → *Run as administrator*; the VS Code terminal is not enough).
+Run once, replacing the path with your project folder; the path must not contain spaces:
 
 ```
 $P = "C:\dev\u21433098-group25_smartstock_dashboard"
@@ -386,7 +430,7 @@ Check them in *Task Scheduler*; remove with `schtasks /Delete /TN "SmartStock"` 
 
 ### Option B: Linux server with Gunicorn and Nginx
 
-On Ubuntu, as a user with `sudo`, assuming the project lives in `/opt/smartstock` and runs as user `smartstock`:
+**Where: a terminal on the Linux server** (for example over SSH), as a user with `sudo`, assuming the project lives in `/opt/smartstock` and runs as user `smartstock`:
 
 ```
 sudo apt install python3-venv mysql-server nginx certbot python3-certbot-nginx
@@ -420,7 +464,8 @@ systemd restarts SmartStock if it crashes and starts it after a reboot. See its 
 
 ### Updating to a new version, and the rollback plan
 
-Every update follows the same five steps, so it can always be undone:
+Every update follows the same five steps, so it can always be undone. **Where: Terminal**
+(project folder, `(venv)` active; on Linux, a terminal on the server in `/opt/smartstock`):
 
 | Step | Windows | Linux |
 |---|---|---|
@@ -443,6 +488,8 @@ read the new file in `migrations/versions/` (check its `downgrade()` too), test 
 `flask db downgrade -1` on your own database, run `pytest`, then commit the migration with the model change.
 
 ### Backups and restore
+
+**Where: Terminal** (project folder, `(venv)` active; on Linux, in `/opt/smartstock`).
 
 | | Windows | Linux |
 |---|---|---|
@@ -484,6 +531,8 @@ backup file appearing in `backups/`.
 | Symptom | Fix |
 |---|---|
 | `SECRET_KEY must be set` or `DATABASE_URL must be set` | `.env` is missing that line, or you are not in the project folder |
+| `'flask' is not recognized` or `No module named flask` | The virtual environment is not active: run `venv\Scripts\activate` in the project folder |
+| `Could not import 'run'` | An old terminal still has the old setting: open a new terminal, or run `$env:FLASK_APP = "app:create_app"` |
 | `Can't connect to MySQL server` | Start MySQL (Windows: *Services* → MySQL80 → Start; Linux: `sudo systemctl start mysql`) |
 | `Access denied for user 'smartstock'` | The password in `DATABASE_URL` does not match the one in Quick start step 1 |
 | `flask health` says `[FAIL] Migrations` | `flask db upgrade` |
